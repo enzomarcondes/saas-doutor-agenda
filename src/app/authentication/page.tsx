@@ -11,23 +11,9 @@ const AuthenticationPage = async () => {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
-
-  // NOVA LÓGICA: Redirecionar com base no que o usuário tem
   if (session?.user) {
-    // Se tem plano e clínica → Dashboard
-    if (session.user.plan && session.user.clinic) {
-      redirect("/dashboard");
-    }
-    // Se tem plano mas não tem clínica → Criar clínica
-    else if (session.user.plan && !session.user.clinic) {
-      redirect("/clinic-form");
-    }
-    // Se não tem plano → Assinatura
-    else if (!session.user.plan) {
-      redirect("/new-subscription");
-    }
+    redirect("/dashboard");
   }
-
   return (
     <div className="flex h-screen w-screen items-center justify-center">
       <Tabs defaultValue="login" className="w-[400px]">
