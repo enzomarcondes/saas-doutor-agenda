@@ -36,12 +36,25 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
+
+  // PROTEÇÃO: Verificar se sessão e clínica existem
+  if (!session?.user?.clinic?.id) {
+    console.error("Missing session data:", {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      hasClinic: !!session?.user?.clinic,
+      hasClinicId: !!session?.user?.clinic?.id,
+    });
+    redirect("/authentication");
+  }
+
   const { from, to } = await searchParams;
   if (!from || !to) {
     redirect(
       `/dashboard?from=${dayjs().format("YYYY-MM-DD")}&to=${dayjs().add(1, "month").format("YYYY-MM-DD")}`,
     );
   }
+
   const {
     totalRevenue,
     totalAppointments,
@@ -57,7 +70,7 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     session: {
       user: {
         clinic: {
-          id: session!.user.clinic!.id,
+          id: session.user.clinic.id, // AGORA É SEGURO (sem os !)
         },
       },
     },
