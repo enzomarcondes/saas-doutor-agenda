@@ -33,15 +33,27 @@ interface DashboardPageProps {
 }
 
 const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
+  // PEGA A SESSÃO
   const session = await auth.api.getSession({
     headers: await headers(),
   });
+
+  // VALIDAÇÃO SIMPLES — SE NÃO TIVER SESSÃO OU DADOS NECESSÁRIOS, REDIRECIONA
+  if (!session || !session.user || !session.user.clinic?.id) {
+    redirect("/authentication");
+  }
+
+  // PEGA OS PARÂMETROS DE DATA
   const { from, to } = await searchParams;
   if (!from || !to) {
     redirect(
-      `/dashboard?from=${dayjs().format("YYYY-MM-DD")}&to=${dayjs().add(1, "month").format("YYYY-MM-DD")}`,
+      `/dashboard?from=${dayjs().format("YYYY-MM-DD")}&to=${dayjs()
+        .add(1, "month")
+        .format("YYYY-MM-DD")}`,
     );
   }
+
+  // CHAMA O GETDASHBOARD COM A SESSÃO SEGURA
   const {
     totalRevenue,
     totalAppointments,
@@ -57,7 +69,7 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     session: {
       user: {
         clinic: {
-          id: session!.user.clinic!.id,
+          id: session.user.clinic.id,
         },
       },
     },
