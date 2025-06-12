@@ -15,8 +15,8 @@ export const createStripeCheckout = protectedActionClient.action(
     const { id: sessionId } = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "subscription",
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/clinic-form`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscription`,
       subscription_data: {
         metadata: {
           userId: ctx.user.id,
