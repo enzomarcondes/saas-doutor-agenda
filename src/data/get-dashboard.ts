@@ -112,7 +112,7 @@ export const getDashboard = async ({ from, to, session }: Params) => {
         patient: true,
         doctor: true,
       },
-      orderBy: [appointmentsTable.date], // Ordena por data/hora crescente
+      orderBy: [appointmentsTable.date],
     }),
     db
       .select({

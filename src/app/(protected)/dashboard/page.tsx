@@ -39,7 +39,8 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
   });
 
   // VALIDAÇÃO SIMPLES — SE NÃO TIVER SESSÃO OU DADOS NECESSÁRIOS, REDIRECIONA
-  if (!session || !session.user || !session.user.clinic?.id) {
+  const clinicId = session?.user?.clinic?.id;
+  if (!session || !session.user || !clinicId) {
     redirect("/authentication");
   }
 
@@ -53,7 +54,7 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     );
   }
 
-  // CHAMA O GETDASHBOARD COM A SESSÃO SEGURA
+  // CHAMA O GETDASHBOARD COM A SESSÃO SEGURA (CLINIC ID)
   const {
     totalRevenue,
     totalAppointments,
@@ -69,7 +70,7 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     session: {
       user: {
         clinic: {
-          id: session.user.clinic.id,
+          id: clinicId,
         },
       },
     },
