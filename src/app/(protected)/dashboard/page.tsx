@@ -33,28 +33,22 @@ interface DashboardPageProps {
 }
 
 const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
-  // PEGA A SESSÃO
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
-  // VALIDAÇÃO SIMPLES — SE NÃO TIVER SESSÃO OU DADOS NECESSÁRIOS, REDIRECIONA
-  const clinicId = session?.user?.clinic?.id;
-  if (!session || !session.user || !clinicId) {
-    redirect("/authentication");
+  // ADICIONAR ESTA VERIFICAÇÃO AQUI:
+  if (!session?.user?.clinic?.id) {
+    redirect("/clinic-form");
   }
 
-  // PEGA OS PARÂMETROS DE DATA
   const { from, to } = await searchParams;
   if (!from || !to) {
     redirect(
-      `/dashboard?from=${dayjs().format("YYYY-MM-DD")}&to=${dayjs()
-        .add(1, "month")
-        .format("YYYY-MM-DD")}`,
+      `/dashboard?from=${dayjs().format("YYYY-MM-DD")}&to=${dayjs().add(1, "month").format("YYYY-MM-DD")}`,
     );
   }
 
-  // CHAMA O GETDASHBOARD COM A SESSÃO SEGURA (CLINIC ID)
   const {
     totalRevenue,
     totalAppointments,
@@ -70,12 +64,13 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     session: {
       user: {
         clinic: {
-          id: clinicId,
+          id: session.user.clinic.id, // Agora é seguro usar sem !
         },
       },
     },
   });
 
+  // ... resto do código permanece igual
   return (
     <WithAuthentication mustHaveClinic mustHavePlan>
       <PageContainer>

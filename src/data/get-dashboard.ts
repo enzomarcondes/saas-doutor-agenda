@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import { and, count, desc, eq, gte, lte, sql, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, lte, sql, sum } from "drizzle-orm";
 
 import { db } from "@/db";
 import { appointmentsTable, doctorsTable, patientsTable } from "@/db/schema";
@@ -19,6 +19,15 @@ interface Params {
 export const getDashboard = async ({ from, to, session }: Params) => {
   const chartStartDate = dayjs().subtract(10, "days").startOf("day").toDate();
   const chartEndDate = dayjs().add(10, "days").endOf("day").toDate();
+
+  // Debug para verificar datas
+  console.log(
+    "Buscando agendamentos de hoje entre:",
+    dayjs().startOf("day").toDate(),
+    "e",
+    dayjs().endOf("day").toDate(),
+  );
+
   const [
     [totalRevenue],
     [totalAppointments],
@@ -112,7 +121,7 @@ export const getDashboard = async ({ from, to, session }: Params) => {
         patient: true,
         doctor: true,
       },
-      orderBy: [appointmentsTable.date],
+      orderBy: [asc(appointmentsTable.date)],
     }),
     db
       .select({
@@ -134,6 +143,10 @@ export const getDashboard = async ({ from, to, session }: Params) => {
       .groupBy(sql`DATE(${appointmentsTable.date})`)
       .orderBy(sql`DATE(${appointmentsTable.date})`),
   ]);
+
+  // Debug para verificar resultados
+  console.log("Today appointments found:", todayAppointments.length);
+
   return {
     totalRevenue,
     totalAppointments,
