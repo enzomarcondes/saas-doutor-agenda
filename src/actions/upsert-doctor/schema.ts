@@ -6,14 +6,9 @@ export const upsertDoctorSchema = z
     name: z.string().trim().min(1, {
       message: "Nome é obrigatório.",
     }),
-    specialty: z.string().trim().min(1, {
-      message: "Especialidade é obrigatória.",
-    }),
-    appointmentPriceInCents: z.number().min(1, {
-      message: "Preço da consulta é obrigatório.",
-    }),
-    availableFromWeekDay: z.number().min(0).max(6),
-    availableToWeekDay: z.number().min(0).max(6),
+    appointmentPriceInCents: z.number().min(0).optional().default(0),
+    availableFromWeekDay: z.number().min(0).max(6), // No banco ainda é 0-6
+    availableToWeekDay: z.number().min(0).max(6), // No banco ainda é 0-6
     availableFromTime: z.string().min(1, {
       message: "Hora de início é obrigatória.",
     }),
@@ -29,6 +24,29 @@ export const upsertDoctorSchema = z
       message:
         "O horário de início não pode ser anterior ao horário de término.",
       path: ["availableToTime"],
+    },
+  )
+  .refine(
+    (data) => {
+      const fromDay = data.availableFromWeekDay;
+      const toDay = data.availableToWeekDay;
+
+      // Se for o mesmo dia, sempre válido
+      if (fromDay === toDay) {
+        return true;
+      }
+
+      // Se domingo (0) for o dia final, sempre válido
+      if (toDay === 0) {
+        return true;
+      }
+
+      // Para outros casos, dia final deve ser >= dia inicial
+      return toDay >= fromDay;
+    },
+    {
+      message: "O dia final deve ser posterior ao dia inicial.",
+      path: ["availableToWeekDay"],
     },
   );
 

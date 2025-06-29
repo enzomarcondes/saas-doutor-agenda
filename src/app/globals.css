@@ -120,3 +120,39 @@
     @apply bg-background text-foreground;
   }
 }
+/* Adicione no final do seu globals.css */
+[data-sidebar="menu-button"][data-active="true"] {
+  background-color: #3b82f6 !important;
+  color: white !important;
+}
+
+[data-sidebar="menu-button"][data-active="true"]:hover {
+  background-color: #2563eb !important;
+  color: white !important;
+}
+
+[data-sidebar="menu-button"][data-active="true"] svg {
+  color: white !important;
+}
+/* Correção para botões no tema escuro */
+.dark button[class*="bg-blue"],
+.dark .bg-blue-500,
+.dark .bg-blue-600,
+.dark .bg-primary {
+  color: white !important;
+}
+
+/* Garantir texto branco em botões primários no tema escuro */
+.dark
+  [data-variant="default"]:not([data-variant="outline"]):not(
+    [data-variant="ghost"]
+  ) {
+  color: white;
+}
+
+/* Correção específica para botões com background azul */
+.dark .bg-blue-500 *,
+.dark .bg-blue-600 *,
+.dark .bg-primary * {
+  color: white;
+}

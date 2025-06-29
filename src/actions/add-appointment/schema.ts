@@ -16,4 +16,18 @@ export const addAppointmentSchema = z.object({
   appointmentPriceInCents: z.number().min(1, {
     message: "Valor da consulta é obrigatório.",
   }),
+  // 🔥 CAMPOS EXISTENTES
+  serviceId: z.string().uuid().optional(),
+  status: z
+    .enum([
+      "agendado",
+      "confirmado",
+      "cancelado",
+      "nao_compareceu",
+      "finalizado",
+    ])
+    .default("agendado"),
+  // 🔥 REMOVIDO: statusPagamento: z.enum(["pago", "a_receber"]).default("a_receber"),
+  // 🔥 CAMPO: DATA DE VENCIMENTO
+  dueDate: z.date().optional(),
 });

@@ -30,9 +30,9 @@ const DoctorsPage = async () => {
       <PageContainer>
         <PageHeader>
           <PageHeaderContent>
-            <PageTitle>Médicos</PageTitle>
+            <PageTitle>Dentistas</PageTitle>
             <PageDescription>
-              Gerencie os médicos da sua clínica
+              Gerencie os dentistas da sua clínica
             </PageDescription>
           </PageHeaderContent>
           <PageActions>

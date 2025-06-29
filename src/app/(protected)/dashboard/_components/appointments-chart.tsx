@@ -3,9 +3,13 @@
 import "dayjs/locale/pt-br";
 
 import dayjs from "dayjs";
+import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 
 dayjs.locale("pt-br");
+dayjs.extend(isSameOrBefore);
+
 import { DollarSign } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,12 +34,21 @@ interface AppointmentsChartProps {
 const AppointmentsChart = ({
   dailyAppointmentsData,
 }: AppointmentsChartProps) => {
-  // Gerar 21 dias: 10 antes + hoje + 10 depois
-  const chartDays = Array.from({ length: 21 }).map((_, i) =>
-    dayjs()
-      .subtract(10 - i, "days")
-      .format("YYYY-MM-DD"),
-  );
+  const searchParams = useSearchParams();
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
+
+  // Gerar todos os dias do período selecionado (mês)
+  const startDate = from ? dayjs(from) : dayjs().startOf("month");
+  const endDate = to ? dayjs(to) : dayjs().endOf("month");
+
+  const chartDays: string[] = [];
+  let currentDate = startDate;
+
+  while (currentDate.isSameOrBefore(endDate)) {
+    chartDays.push(currentDate.format("YYYY-MM-DD"));
+    currentDate = currentDate.add(1, "day");
+  }
 
   const chartData = chartDays.map((date) => {
     const dataForDay = dailyAppointmentsData.find((item) => item.date === date);
@@ -59,7 +72,7 @@ const AppointmentsChart = ({
   } satisfies ChartConfig;
 
   return (
-    <Card>
+    <Card className="dark:bg-card bg-gray-50">
       <CardHeader className="flex flex-row items-center gap-2">
         <DollarSign />
         <CardTitle>Agendamentos e Faturamento</CardTitle>

@@ -1,10 +1,7 @@
 import dayjs from "dayjs";
-import { Calendar } from "lucide-react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
 import {
   PageActions,
   PageContainer,
@@ -18,12 +15,11 @@ import { getDashboard } from "@/data/get-dashboard";
 import WithAuthentication from "@/hocs/with-authentication";
 import { auth } from "@/lib/auth";
 
-import { appointmentsTableColumns } from "../appointments/_components/table-columns";
 import AppointmentsChart from "./_components/appointments-chart";
-import { DatePicker } from "./_components/date-picker";
+import { MonthPicker } from "./_components/month-picker";
+import SmartNotifications from "./_components/smart-notifications";
 import StatsCards from "./_components/stats-cards";
-import TopDoctors from "./_components/top-doctors";
-import TopSpecialties from "./_components/top-specialties";
+import WeeklyAgenda from "./_components/weekly-agenda";
 
 interface DashboardPageProps {
   searchParams: Promise<{
@@ -37,15 +33,16 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     headers: await headers(),
   });
 
-  // ADICIONAR ESTA VERIFICAÇÃO AQUI:
+  // Verificação de segurança para clínica
   if (!session?.user?.clinic?.id) {
     redirect("/clinic-form");
   }
 
   const { from, to } = await searchParams;
   if (!from || !to) {
+    // Redirecionar para o mês atual por padrão
     redirect(
-      `/dashboard?from=${dayjs().format("YYYY-MM-DD")}&to=${dayjs().add(1, "month").format("YYYY-MM-DD")}`,
+      `/dashboard?from=${dayjs().startOf("month").format("YYYY-MM-DD")}&to=${dayjs().endOf("month").format("YYYY-MM-DD")}`,
     );
   }
 
@@ -54,8 +51,6 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     totalAppointments,
     totalPatients,
     totalDoctors,
-    topDoctors,
-    topSpecialties,
     todayAppointments,
     dailyAppointmentsData,
   } = await getDashboard({
@@ -64,13 +59,12 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     session: {
       user: {
         clinic: {
-          id: session.user.clinic.id, // Agora é seguro usar sem !
+          id: session.user.clinic.id,
         },
       },
     },
   });
 
-  // ... resto do código permanece igual
   return (
     <WithAuthentication mustHaveClinic mustHavePlan>
       <PageContainer>
@@ -82,10 +76,11 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
             </PageDescription>
           </PageHeaderContent>
           <PageActions>
-            <DatePicker />
+            <MonthPicker />
           </PageActions>
         </PageHeader>
-        <PageContent>
+        <PageContent className="space-y-6">
+          {/* 📊 STATS CARDS */}
           <StatsCards
             totalRevenue={
               totalRevenue.total ? Number(totalRevenue.total) : null
@@ -94,28 +89,16 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
             totalPatients={totalPatients.total}
             totalDoctors={totalDoctors.total}
           />
-          <div className="grid grid-cols-[2.25fr_1fr] gap-4">
+
+          {/* 📈 GRÁFICO + NOTIFICAÇÕES INTELIGENTES */}
+          <div className="grid grid-cols-[2.25fr_1fr] gap-6">
             <AppointmentsChart dailyAppointmentsData={dailyAppointmentsData} />
-            <TopDoctors doctors={topDoctors} />
+            <SmartNotifications todayAppointments={todayAppointments} />
           </div>
-          <div className="grid grid-cols-[2.25fr_1fr] gap-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <Calendar className="text-muted-foreground" />
-                  <CardTitle className="text-base">
-                    Agendamentos de hoje
-                  </CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <DataTable
-                  columns={appointmentsTableColumns}
-                  data={todayAppointments}
-                />
-              </CardContent>
-            </Card>
-            <TopSpecialties topSpecialties={topSpecialties} />
+
+          {/* 📅 AGENDA SEMANAL INTERATIVA */}
+          <div className="w-full">
+            <WeeklyAgenda todayAppointments={todayAppointments} />
           </div>
         </PageContent>
       </PageContainer>

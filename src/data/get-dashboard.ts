@@ -2,7 +2,12 @@ import dayjs from "dayjs";
 import { and, asc, count, desc, eq, gte, lte, sql, sum } from "drizzle-orm";
 
 import { db } from "@/db";
-import { appointmentsTable, doctorsTable, patientsTable } from "@/db/schema";
+import {
+  appointmentsTable,
+  doctorsTable,
+  patientsTable,
+  servicesTable,
+} from "@/db/schema";
 
 interface Params {
   from: string;
@@ -17,16 +22,13 @@ interface Params {
 }
 
 export const getDashboard = async ({ from, to, session }: Params) => {
-  const chartStartDate = dayjs().subtract(10, "days").startOf("day").toDate();
-  const chartEndDate = dayjs().add(10, "days").endOf("day").toDate();
+  const chartStartDate = new Date(from);
+  const chartEndDate = new Date(to);
 
-  // Debug para verificar datas
-  console.log(
-    "Buscando agendamentos de hoje entre:",
-    dayjs().startOf("day").toDate(),
-    "e",
-    dayjs().endOf("day").toDate(),
-  );
+  // 🔥 CALCULAR SEMANA ATUAL PARA AGENDA
+  const today = dayjs();
+  const startOfWeek = today.startOf("week"); // Domingo
+  const endOfWeek = today.endOf("week"); // Sábado
 
   const [
     [totalRevenue],
@@ -34,8 +36,8 @@ export const getDashboard = async ({ from, to, session }: Params) => {
     [totalPatients],
     [totalDoctors],
     topDoctors,
-    topSpecialties,
-    todayAppointments,
+    topServices,
+    weeklyAppointments, // 🔥 RENOMEADO E EXPANDIDO
     dailyAppointmentsData,
   ] = await Promise.all([
     db
@@ -79,7 +81,6 @@ export const getDashboard = async ({ from, to, session }: Params) => {
         id: doctorsTable.id,
         name: doctorsTable.name,
         avatarImageUrl: doctorsTable.avatarImageUrl,
-        specialty: doctorsTable.specialty,
         appointments: count(appointmentsTable.id),
       })
       .from(doctorsTable)
@@ -97,11 +98,14 @@ export const getDashboard = async ({ from, to, session }: Params) => {
       .limit(10),
     db
       .select({
-        specialty: doctorsTable.specialty,
+        serviceName: servicesTable.name,
         appointments: count(appointmentsTable.id),
       })
       .from(appointmentsTable)
-      .innerJoin(doctorsTable, eq(appointmentsTable.doctorId, doctorsTable.id))
+      .innerJoin(
+        servicesTable,
+        eq(appointmentsTable.serviceId, servicesTable.id),
+      )
       .where(
         and(
           eq(appointmentsTable.clinicId, session.user.clinic.id),
@@ -109,17 +113,19 @@ export const getDashboard = async ({ from, to, session }: Params) => {
           lte(appointmentsTable.date, new Date(to)),
         ),
       )
-      .groupBy(doctorsTable.specialty)
+      .groupBy(servicesTable.name)
       .orderBy(desc(count(appointmentsTable.id))),
+    // 🔥 AGENDAMENTOS DA SEMANA ATUAL (NÃO SÓ HOJE)
     db.query.appointmentsTable.findMany({
       where: and(
         eq(appointmentsTable.clinicId, session.user.clinic.id),
-        gte(appointmentsTable.date, dayjs().startOf("day").toDate()),
-        lte(appointmentsTable.date, dayjs().endOf("day").toDate()),
+        gte(appointmentsTable.date, startOfWeek.toDate()),
+        lte(appointmentsTable.date, endOfWeek.toDate()),
       ),
       with: {
         patient: true,
         doctor: true,
+        service: true,
       },
       orderBy: [asc(appointmentsTable.date)],
     }),
@@ -144,17 +150,14 @@ export const getDashboard = async ({ from, to, session }: Params) => {
       .orderBy(sql`DATE(${appointmentsTable.date})`),
   ]);
 
-  // Debug para verificar resultados
-  console.log("Today appointments found:", todayAppointments.length);
-
   return {
     totalRevenue,
     totalAppointments,
     totalPatients,
     totalDoctors,
     topDoctors,
-    topSpecialties,
-    todayAppointments,
+    topServices,
+    todayAppointments: weeklyAppointments, // 🔥 RENOMEADO PARA MANTER COMPATIBILIDADE
     dailyAppointmentsData,
   };
 };

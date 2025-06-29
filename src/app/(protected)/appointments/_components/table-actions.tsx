@@ -38,7 +38,7 @@ type AppointmentWithRelations = typeof appointmentsTable.$inferSelect & {
   doctor: {
     id: string;
     name: string;
-    specialty: string;
+    // 🔥 REMOVIDO: specialty: string;
   };
 };
 

@@ -38,7 +38,7 @@ const StatsCards = ({
       icon: UserIcon,
     },
     {
-      title: "Médicos",
+      title: "Dentistas",
       value: totalDoctors.toString(),
       icon: UsersIcon,
     },
@@ -49,7 +49,7 @@ const StatsCards = ({
       {stats.map((stat) => {
         const Icon = stat.icon;
         return (
-          <Card key={stat.title} className="gap-2">
+          <Card key={stat.title} className="dark:bg-card gap-2 bg-gray-50">
             <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
               <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
                 <Icon className="text-primary h-4 w-4" />

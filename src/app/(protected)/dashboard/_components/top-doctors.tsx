@@ -8,7 +8,6 @@ interface TopDoctorsProps {
     id: string;
     name: string;
     avatarImageUrl: string | null;
-    specialty: string;
     appointments: number;
   }[];
 }
@@ -20,7 +19,7 @@ export default function TopDoctors({ doctors }: TopDoctorsProps) {
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Stethoscope className="text-muted-foreground" />
-            <CardTitle className="text-base">Médicos</CardTitle>
+            <CardTitle className="text-base">Dentistas</CardTitle>
           </div>
         </div>
 
@@ -40,9 +39,7 @@ export default function TopDoctors({ doctors }: TopDoctorsProps) {
                 </Avatar>
                 <div>
                   <h3 className="text-sm">{doctor.name}</h3>
-                  <p className="text-muted-foreground text-sm">
-                    {doctor.specialty}
-                  </p>
+                  <p className="text-muted-foreground text-sm"></p>
                 </div>
               </div>
               <div className="text-right">

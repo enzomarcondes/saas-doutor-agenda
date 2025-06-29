@@ -1,4 +1,5 @@
 import { relations } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
   boolean,
   integer,
@@ -9,6 +10,7 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+import z from "zod";
 
 export const usersTable = pgTable("users", {
   id: text("id").primaryKey(),
@@ -103,11 +105,70 @@ export const usersToClinicsTableRelations = relations(
   }),
 );
 
+// 🔥 ENUM PARA MÉTODOS DE PAGAMENTO
+export const paymentMethodEnum = pgEnum("payment_method", [
+  "dinheiro",
+  "cartao_debito",
+  "cartao_credito",
+  "pix",
+  "transferencia",
+]);
+
+// 🔥 NOVOS ENUMS PARA PARCELAMENTO
+export const paymentTypeEnum = pgEnum("payment_type", ["avista", "parcelado"]);
+
+export const paymentStatusEnum = pgEnum("payment_status", ["pago", "pendente"]);
+
+// 🔥 TABELA DE PAGAMENTOS ATUALIZADA
+export const paymentsTable = pgTable("payments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clinicId: uuid("clinic_id")
+    .notNull()
+    .references(() => clinicsTable.id, { onDelete: "cascade" }),
+  patientId: uuid("patient_id")
+    .notNull()
+    .references(() => patientsTable.id, { onDelete: "cascade" }),
+  amountInCents: integer("amount_in_cents").notNull(),
+  paymentMethod: paymentMethodEnum("payment_method").notNull(),
+  paymentDate: timestamp("payment_date").notNull(),
+  notes: text("notes"),
+
+  // 🔥 NOVOS CAMPOS PARA PARCELAMENTO
+  paymentType: paymentTypeEnum("payment_type").notNull().default("avista"),
+  paymentStatus: paymentStatusEnum("payment_status").notNull().default("pago"),
+  dueDate: timestamp("due_date")
+    .notNull()
+    .default(sql`now()`),
+  installmentNumber: integer("installment_number"), // Ex: 1, 2, 3
+  totalInstallments: integer("total_installments"), // Ex: 3 (total)
+  installmentGroupId: uuid("installment_group_id"), // Agrupa parcelas
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+// 🔥 RELAÇÕES DA TABELA DE PAGAMENTOS
+export const paymentsTableRelations = relations(paymentsTable, ({ one }) => ({
+  clinic: one(clinicsTable, {
+    fields: [paymentsTable.clinicId],
+    references: [clinicsTable.id],
+  }),
+  patient: one(patientsTable, {
+    fields: [paymentsTable.patientId],
+    references: [patientsTable.id],
+  }),
+}));
+
+// 🔥 RELAÇÕES DA CLÍNICA ATUALIZADA
 export const clinicsTableRelations = relations(clinicsTable, ({ many }) => ({
   doctors: many(doctorsTable),
   patients: many(patientsTable),
   appointments: many(appointmentsTable),
+  services: many(servicesTable),
   usersToClinics: many(usersToClinicsTable),
+  payments: many(paymentsTable), // 🔥 RELAÇÃO COM PAGAMENTOS
 }));
 
 export const doctorsTable = pgTable("doctors", {
@@ -122,13 +183,24 @@ export const doctorsTable = pgTable("doctors", {
   availableToWeekDay: integer("available_to_week_day").notNull(),
   availableFromTime: time("available_from_time").notNull(),
   availableToTime: time("available_to_time").notNull(),
-  specialty: text("specialty").notNull(),
   appointmentPriceInCents: integer("appointment_price_in_cents").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
     .$onUpdate(() => new Date()),
 });
+
+export const upsertServiceSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().trim().min(1, {
+    message: "Nome do serviço é obrigatório.",
+  }),
+  priceInCents: z.number().min(1, {
+    message: "Preço do serviço é obrigatório.",
+  }),
+});
+
+export type UpsertServiceSchema = z.infer<typeof upsertServiceSchema>;
 
 export const doctorsTableRelations = relations(
   doctorsTable,
@@ -158,6 +230,7 @@ export const patientsTable = pgTable("patients", {
     .$onUpdate(() => new Date()),
 });
 
+// 🔥 RELAÇÕES DOS PACIENTES ATUALIZADA
 export const patientsTableRelations = relations(
   patientsTable,
   ({ one, many }) => ({
@@ -166,8 +239,18 @@ export const patientsTableRelations = relations(
       references: [clinicsTable.id],
     }),
     appointments: many(appointmentsTable),
+    payments: many(paymentsTable), // 🔥 RELAÇÃO COM PAGAMENTOS
   }),
 );
+
+// 🔥 ENUMS DE STATUS
+export const appointmentStatusEnum = pgEnum("appointment_status", [
+  "agendado",
+  "confirmado",
+  "cancelado",
+  "nao_compareceu",
+  "finalizado",
+]);
 
 export const appointmentsTable = pgTable("appointments", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -182,6 +265,13 @@ export const appointmentsTable = pgTable("appointments", {
   doctorId: uuid("doctor_id")
     .notNull()
     .references(() => doctorsTable.id, { onDelete: "cascade" }),
+  serviceId: uuid("service_id").references(() => servicesTable.id, {
+    onDelete: "set null",
+  }),
+  status: appointmentStatusEnum("status").default("agendado").notNull(),
+
+  // 🔥 CAMPO DE DATA DE VENCIMENTO
+  dueDate: timestamp("due_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
@@ -203,5 +293,33 @@ export const appointmentsTableRelations = relations(
       fields: [appointmentsTable.doctorId],
       references: [doctorsTable.id],
     }),
+    service: one(servicesTable, {
+      fields: [appointmentsTable.serviceId],
+      references: [servicesTable.id],
+    }),
+  }),
+);
+
+export const servicesTable = pgTable("services", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clinicId: uuid("clinic_id")
+    .notNull()
+    .references(() => clinicsTable.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  priceInCents: integer("price_in_cents").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const servicesTableRelations = relations(
+  servicesTable,
+  ({ one, many }) => ({
+    clinic: one(clinicsTable, {
+      fields: [servicesTable.clinicId],
+      references: [clinicsTable.id],
+    }),
+    appointments: many(appointmentsTable),
   }),
 );

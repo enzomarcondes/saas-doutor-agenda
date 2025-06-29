@@ -1,17 +1,12 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import dayjs from "dayjs";
 import { CalendarIcon } from "lucide-react";
-import { useAction } from "next-safe-action/hooks";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
 import { NumericFormat } from "react-number-format";
-import { toast } from "sonner";
-import { z } from "zod";
 
 import { addAppointment } from "@/actions/add-appointment";
 import { getAvailableTimes } from "@/actions/get-available-times";
@@ -19,20 +14,11 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Popover,
   PopoverContent,
@@ -45,310 +31,394 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { doctorsTable, patientsTable } from "@/db/schema";
+import { doctorsTable } from "@/db/schema";
 import { cn } from "@/lib/utils";
 
-const formSchema = z.object({
-  patientId: z.string().min(1, {
-    message: "Paciente é obrigatório.",
-  }),
-  doctorId: z.string().min(1, {
-    message: "Médico é obrigatório.",
-  }),
-  appointmentPrice: z.number().min(1, {
-    message: "Valor da consulta é obrigatório.",
-  }),
-  date: z.date({
-    message: "Data é obrigatória.",
-  }),
-  time: z.string().min(1, {
-    message: "Horário é obrigatório.",
-  }),
-});
-
 interface AddAppointmentFormProps {
-  isOpen: boolean;
-  patients: (typeof patientsTable.$inferSelect)[];
+  patients: Array<{
+    id: string;
+    name: string;
+    email: string | null;
+    phoneNumber: string | null;
+    clinicId: string;
+  }>;
   doctors: (typeof doctorsTable.$inferSelect)[];
-  onSuccess?: () => void;
+  services: Array<{
+    id: string;
+    name: string;
+    priceInCents: number;
+    clinicId: string;
+  }>;
+  onSuccess: () => void;
 }
 
-const AddAppointmentForm = ({
+export function AddAppointmentForm({
   patients,
   doctors,
+  services,
   onSuccess,
-  isOpen,
-}: AddAppointmentFormProps) => {
-  const form = useForm<z.infer<typeof formSchema>>({
-    shouldUnregister: true,
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      patientId: "",
-      doctorId: "",
-      appointmentPrice: 0,
-      date: undefined,
-      time: "",
-    },
-  });
+}: AddAppointmentFormProps) {
+  const [date, setDate] = useState<Date>();
+  const [time, setTime] = useState("");
+  const [selectedPatient, setSelectedPatient] = useState("");
+  const [selectedDoctor, setSelectedDoctor] = useState("");
+  const [selectedService, setSelectedService] = useState("");
+  const [appointmentPrice, setAppointmentPrice] = useState("");
+  const [status, setStatus] = useState<
+    "agendado" | "confirmado" | "cancelado" | "nao_compareceu" | "finalizado"
+  >("agendado");
+  // 🔥 REMOVIDO: const [statusPagamento, setStatusPagamento] = useState<"pago" | "a_receber">("a_receber");
+  const [dueDate, setDueDate] = useState<Date>();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const selectedDoctorId = form.watch("doctorId");
-  const selectedPatientId = form.watch("patientId");
-  const selectedDate = form.watch("date");
+  // 🔥 NOVOS ESTADOS PARA CONTROLAR POPOVERS
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [isDueDatePickerOpen, setIsDueDatePickerOpen] = useState(false);
 
+  // 🔥 BUSCAR HORÁRIOS DISPONÍVEIS AUTOMATICAMENTE
   const { data: availableTimes } = useQuery({
-    queryKey: ["available-times", selectedDate, selectedDoctorId],
+    queryKey: ["available-times", date, selectedDoctor],
     queryFn: () =>
       getAvailableTimes({
-        date: dayjs(selectedDate).format("YYYY-MM-DD"),
-        doctorId: selectedDoctorId,
+        date: dayjs(date).format("YYYY-MM-DD"),
+        doctorId: selectedDoctor,
       }),
-    enabled: !!selectedDate && !!selectedDoctorId,
+    enabled: !!date && !!selectedDoctor,
   });
 
-  // Atualizar o preço quando o médico for selecionado
+  // 🔥 AUTO-FILL PREÇO QUANDO SELECIONAR DOUTOR
   useEffect(() => {
-    if (selectedDoctorId) {
-      const selectedDoctor = doctors.find(
-        (doctor) => doctor.id === selectedDoctorId,
-      );
-      if (selectedDoctor) {
-        form.setValue(
-          "appointmentPrice",
-          selectedDoctor.appointmentPriceInCents / 100,
-        );
+    if (selectedDoctor) {
+      const doctor = doctors.find((d) => d.id === selectedDoctor);
+      if (doctor?.appointmentPriceInCents) {
+        const priceInReais = doctor.appointmentPriceInCents / 100;
+        setAppointmentPrice(priceInReais.toString());
       }
     }
-  }, [selectedDoctorId, doctors, form]);
+  }, [selectedDoctor, doctors]);
 
-  useEffect(() => {
-    if (isOpen) {
-      form.reset({
-        patientId: "",
-        doctorId: "",
-        appointmentPrice: 0,
-        date: undefined,
-        time: "",
-      });
+  // 🔥 AUTO-COMPLETAR PREÇO QUANDO SELECIONAR SERVIÇO
+  const handleServiceChange = (serviceId: string) => {
+    setSelectedService(serviceId);
+
+    if (serviceId) {
+      const service = services.find((s) => s.id === serviceId);
+      if (service?.priceInCents) {
+        const priceInReais = service.priceInCents / 100;
+        setAppointmentPrice(priceInReais.toString());
+      }
     }
-  }, [isOpen, form]);
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-
-  const createAppointmentAction = useAction(addAppointment, {
-    onSuccess: () => {
-      toast.success("Agendamento criado com sucesso.");
-      onSuccess?.();
-    },
-    onError: () => {
-      toast.error("Erro ao criar agendamento.");
-    },
-  });
-
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    createAppointmentAction.execute({
-      ...values,
-      appointmentPriceInCents: values.appointmentPrice * 100,
-    });
   };
 
+  // 🔥 VERIFICAR SE DATA ESTÁ DISPONÍVEL PARA O DOUTOR - CORRIGIDO
   const isDateAvailable = (date: Date) => {
-    if (!selectedDoctorId) return false;
-    const selectedDoctor = doctors.find(
-      (doctor) => doctor.id === selectedDoctorId,
-    );
     if (!selectedDoctor) return false;
+    const doctor = doctors.find((d) => d.id === selectedDoctor);
+    if (!doctor) return false;
+
     const dayOfWeek = date.getDay();
-    return (
-      dayOfWeek >= selectedDoctor?.availableFromWeekDay &&
-      dayOfWeek <= selectedDoctor?.availableToWeekDay
-    );
+
+    // 🔥 CORRIGIR PARA SUPORTAR SPANS QUE ATRAVESSAM A SEMANA
+    if (doctor.availableFromWeekDay <= doctor.availableToWeekDay) {
+      // Caso normal: segunda(1) a sexta(5)
+      return (
+        dayOfWeek >= doctor.availableFromWeekDay &&
+        dayOfWeek <= doctor.availableToWeekDay
+      );
+    } else {
+      // Caso especial: segunda(1) a domingo(0) - atravessa a semana
+      return (
+        dayOfWeek >= doctor.availableFromWeekDay ||
+        dayOfWeek <= doctor.availableToWeekDay
+      );
+    }
   };
 
-  const isDateTimeEnabled = selectedPatientId && selectedDoctorId;
+  // 🔥 RESETAR HORÁRIO QUANDO MUDAR DATA OU DOUTOR
+  useEffect(() => {
+    setTime("");
+  }, [date, selectedDoctor]);
+
+  // 🔥 CALCULAR VENCIMENTO PADRÃO QUANDO MUDAR DATA (REMOVIDO statusPagamento)
+  useEffect(() => {
+    if (date) {
+      // 🔥 SEMPRE CALCULAR VENCIMENTO PADRÃO DE 30 DIAS
+      const defaultDue = dayjs(date).add(30, "days").toDate();
+      setDueDate(defaultDue);
+    }
+  }, [date]); // 🔥 REMOVIDO statusPagamento da dependência
+
+  // 🔥 FUNÇÕES PARA FECHAR POPOVERS AO SELECIONAR DATA
+  const handleDateSelect = (selectedDate: Date | undefined) => {
+    setDate(selectedDate);
+    setIsDatePickerOpen(false);
+  };
+
+  const handleDueDateSelect = (selectedDate: Date | undefined) => {
+    setDueDate(selectedDate);
+    setIsDueDatePickerOpen(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (
+      !date ||
+      !time ||
+      !selectedPatient ||
+      !selectedDoctor ||
+      !appointmentPrice
+    ) {
+      alert("Preencha todos os campos obrigatórios");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const priceInCents = Math.round(parseFloat(appointmentPrice) * 100);
+      const timeForAction = time.substring(0, 5);
+
+      const appointmentData = {
+        date,
+        time: timeForAction,
+        patientId: selectedPatient,
+        doctorId: selectedDoctor,
+        serviceId: selectedService || undefined,
+        appointmentPriceInCents: priceInCents,
+        status,
+        // 🔥 REMOVIDO: statusPagamento,
+        dueDate,
+      };
+
+      await addAppointment(appointmentData);
+
+      // Reset form
+      setDate(undefined);
+      setTime("");
+      setSelectedPatient("");
+      setSelectedDoctor("");
+      setSelectedService("");
+      setAppointmentPrice("");
+      setStatus("agendado");
+      // 🔥 REMOVIDO: setStatusPagamento("a_receber");
+      setDueDate(undefined);
+
+      alert("Agendamento criado com sucesso!");
+      onSuccess();
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Tente novamente.";
+      alert(`Erro ao criar agendamento: ${errorMessage}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const isDateTimeEnabled = selectedPatient && selectedDoctor;
 
   return (
-    <DialogContent className="sm:max-w-[500px]">
+    <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
       <DialogHeader>
-        <DialogTitle>Novo agendamento</DialogTitle>
-        <DialogDescription>
-          Crie um novo agendamento para sua clínica.
-        </DialogDescription>
+        <DialogTitle>Novo Agendamento</DialogTitle>
       </DialogHeader>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <FormField
-            control={form.control}
-            name="patientId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Paciente</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* 1. PACIENTE */}
+        <div className="space-y-2">
+          <Label htmlFor="patient">Paciente *</Label>
+          <Select value={selectedPatient} onValueChange={setSelectedPatient}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione um paciente" />
+            </SelectTrigger>
+            <SelectContent>
+              {patients.map((patient) => (
+                <SelectItem key={patient.id} value={patient.id}>
+                  {patient.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 2. DOUTOR */}
+        <div className="space-y-2">
+          <Label htmlFor="doctor">Doutor *</Label>
+          <Select value={selectedDoctor} onValueChange={setSelectedDoctor}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione um doutor" />
+            </SelectTrigger>
+            <SelectContent>
+              {doctors.map((doctor) => (
+                <SelectItem key={doctor.id} value={doctor.id}>
+                  {doctor.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 3. DATA - COM FECHAMENTO AUTOMÁTICO */}
+        <div className="space-y-2">
+          <Label htmlFor="date">Data *</Label>
+          <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                disabled={!isDateTimeEnabled}
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !date && "text-muted-foreground",
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {date
+                  ? format(date, "PPP", { locale: ptBR })
+                  : "Selecione uma data"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={handleDateSelect}
+                disabled={(date) => {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const checkDate = new Date(date);
+                  checkDate.setHours(0, 0, 0, 0);
+                  return checkDate < today || !isDateAvailable(date);
+                }}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* 4. HORÁRIO */}
+        <div className="space-y-2">
+          <Label htmlFor="time">Horário *</Label>
+          <Select
+            value={time}
+            onValueChange={setTime}
+            disabled={!isDateTimeEnabled || !date}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione um horário" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableTimes?.data?.map((timeSlot) => (
+                <SelectItem
+                  key={timeSlot.value}
+                  value={timeSlot.value}
+                  disabled={!timeSlot.available}
                 >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione um paciente" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {patients.map((patient) => (
-                      <SelectItem key={patient.id} value={patient.id}>
-                        {patient.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
+                  {timeSlot.label} {!timeSlot.available && "(Indisponível)"}
+                </SelectItem>
+              ))}
+              {(!availableTimes?.data || availableTimes.data.length === 0) && (
+                <div className="text-muted-foreground px-2 py-1.5 text-sm">
+                  Nenhum horário disponível
+                </div>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 5. SERVIÇO */}
+        <div className="space-y-2">
+          <Label htmlFor="service">Serviço</Label>
+          <Select value={selectedService} onValueChange={handleServiceChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione um serviço (opcional)" />
+            </SelectTrigger>
+            <SelectContent>
+              {services.map((service) => (
+                <SelectItem key={service.id} value={service.id}>
+                  {service.name} - R$ {(service.priceInCents / 100).toFixed(2)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 6. VALOR */}
+        <div className="space-y-2">
+          <Label htmlFor="price">Valor (R$) *</Label>
+          <NumericFormat
+            customInput={Input}
+            thousandSeparator="."
+            decimalSeparator=","
+            prefix="R$ "
+            decimalScale={2}
+            fixedDecimalScale
+            allowNegative={false}
+            value={appointmentPrice}
+            onValueChange={(values) => {
+              setAppointmentPrice(values.floatValue?.toString() || "");
+            }}
+            placeholder="R$ 0,00"
           />
+        </div>
 
-          <FormField
-            control={form.control}
-            name="doctorId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Médico</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione um médico" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {doctors.map((doctor) => (
-                      <SelectItem key={doctor.id} value={doctor.id}>
-                        {doctor.name} - {doctor.specialty}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        {/* 7. STATUS DA CONSULTA */}
+        <div className="space-y-2">
+          <Label htmlFor="status">Status da Consulta</Label>
+          <Select
+            value={status}
+            onValueChange={(value) => setStatus(value as typeof status)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="agendado">Agendado</SelectItem>
+              <SelectItem value="confirmado">Confirmado</SelectItem>
+              <SelectItem value="cancelado">Cancelado</SelectItem>
+              <SelectItem value="nao_compareceu">Não compareceu</SelectItem>
+              <SelectItem value="finalizado">Finalizado</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-          <FormField
-            control={form.control}
-            name="appointmentPrice"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Valor da consulta</FormLabel>
-                <NumericFormat
-                  value={field.value}
-                  onValueChange={(value) => {
-                    field.onChange(value.floatValue);
-                  }}
-                  decimalScale={2}
-                  fixedDecimalScale
-                  decimalSeparator=","
-                  thousandSeparator="."
-                  prefix="R$ "
-                  allowNegative={false}
-                  disabled={!selectedDoctorId}
-                  customInput={Input}
-                />
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        {/* 🔥 REMOVIDO COMPLETAMENTE O SELECT DE STATUS PAGAMENTO */}
 
-          <FormField
-            control={form.control}
-            name="date"
-            render={({ field }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>Data</FormLabel>
-                <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant={"outline"}
-                        disabled={!isDateTimeEnabled}
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !field.value && "text-muted-foreground",
-                        )}
-                        onClick={() => setIsCalendarOpen(true)}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {field.value ? (
-                          format(field.value, "PPP", { locale: ptBR })
-                        ) : (
-                          <span>Selecione uma data</span>
-                        )}
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={field.value}
-                      onSelect={(date) => {
-                        field.onChange(date);
-                        setIsCalendarOpen(false); // Fecha o popover
-                      }}
-                      disabled={(date) =>
-                        dayjs(date).isBefore(dayjs().startOf("day")) ||
-                        !isDateAvailable(date)
-                      }
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+        {/* 8. DATA DE VENCIMENTO - COM FECHAMENTO AUTOMÁTICO */}
+        <div className="space-y-2">
+          <Label htmlFor="dueDate">Data de Vencimento</Label>
+          <Popover
+            open={isDueDatePickerOpen}
+            onOpenChange={setIsDueDatePickerOpen}
+          >
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !dueDate && "text-muted-foreground",
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dueDate
+                  ? format(dueDate, "PPP", { locale: ptBR })
+                  : "Selecione uma data de vencimento"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={dueDate}
+                onSelect={handleDueDateSelect}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
 
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="time"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Horário</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                  disabled={!isDateTimeEnabled || !selectedDate}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione um horário" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {availableTimes?.data?.map((time) => (
-                      <SelectItem
-                        key={time.value}
-                        value={time.value}
-                        disabled={!time.available}
-                      >
-                        {time.label} {!time.available && "(Indisponível)"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <DialogFooter>
-            <Button type="submit" disabled={createAppointmentAction.isPending}>
-              {createAppointmentAction.isPending
-                ? "Criando..."
-                : "Criar agendamento"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </Form>
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? "Criando..." : "Criar Agendamento"}
+        </Button>
+      </form>
     </DialogContent>
   );
-};
-
-export default AddAppointmentForm;
+}

@@ -5,18 +5,31 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
-import { doctorsTable, patientsTable } from "@/db/schema";
+import { doctorsTable } from "@/db/schema"; // 🔥 IMPORTAR O TIPO
 
-import AddAppointmentForm from "./add-appointment-form";
+import { AddAppointmentForm } from "./add-appointment-form";
 
 interface AddAppointmentButtonProps {
-  patients: (typeof patientsTable.$inferSelect)[];
-  doctors: (typeof doctorsTable.$inferSelect)[];
+  patients: Array<{
+    id: string;
+    name: string;
+    email: string | null;
+    phoneNumber: string | null;
+    clinicId: string;
+  }>;
+  doctors: (typeof doctorsTable.$inferSelect)[]; // 🔥 USAR TIPO COMPLETO DO BANCO
+  services: Array<{
+    id: string;
+    name: string;
+    priceInCents: number;
+    clinicId: string;
+  }>;
 }
 
 const AddAppointmentButton = ({
   patients,
   doctors,
+  services,
 }: AddAppointmentButtonProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -25,13 +38,13 @@ const AddAppointmentButton = ({
       <DialogTrigger asChild>
         <Button>
           <Plus />
-          Novo agendamento
+          Adicionar Agendamento
         </Button>
       </DialogTrigger>
       <AddAppointmentForm
-        isOpen={isOpen}
         patients={patients}
         doctors={doctors}
+        services={services}
         onSuccess={() => setIsOpen(false)}
       />
     </Dialog>
