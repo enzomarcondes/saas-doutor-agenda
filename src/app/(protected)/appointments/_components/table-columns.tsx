@@ -1,8 +1,6 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
@@ -242,14 +240,6 @@ export const columns: ColumnDef<Appointment>[] = [
     accessorKey: "date",
     header: () => <div className="text-center">Data Agendamento</div>,
     cell: ({ row }) => {
-      // 🔥 DEBUG: VAMOS ADICIONAR LOGS TEMPORÁRIOS
-      console.log("🕐 Raw date from DB:", row.original.date);
-      console.log("🕐 UTC parsed:", dayjs.utc(row.original.date).format());
-      console.log(
-        "🕐 Brazil converted:",
-        dayjs.utc(row.original.date).tz("America/Sao_Paulo").format(),
-      );
-
       // 🔥 CONVERSÃO GARANTIDA UTC → BRASIL
       const appointmentDateBR = dayjs
         .utc(row.original.date)
@@ -263,17 +253,13 @@ export const columns: ColumnDef<Appointment>[] = [
         appointmentDateBR.format("YYYY-MM-DD") ===
         tomorrowBR.format("YYYY-MM-DD");
 
-      // 🔥 IMPORTANTE: USAR appointmentDateBR.toDate() PARA EXIBIÇÃO
-      const displayDate = appointmentDateBR.toDate();
+      // 🔥 USAR DAYJS PARA FORMATAR (NÃO DATE-FNS)
+      const formattedDate = appointmentDateBR.format("DD/MM/YYYY [às] HH:mm");
 
       if (isToday) {
         return (
           <div className="text-center">
-            <div className="text-sm">
-              {format(displayDate, "dd/MM/yyyy 'às' HH:mm", {
-                locale: ptBR,
-              })}
-            </div>
+            <div className="text-sm">{formattedDate}</div>
             <div className="mt-1 text-xs font-medium text-yellow-600 dark:text-yellow-400">
               Hoje
             </div>
@@ -284,11 +270,7 @@ export const columns: ColumnDef<Appointment>[] = [
       if (isTomorrow) {
         return (
           <div className="text-center">
-            <div className="text-sm">
-              {format(displayDate, "dd/MM/yyyy 'às' HH:mm", {
-                locale: ptBR,
-              })}
-            </div>
+            <div className="text-sm">{formattedDate}</div>
             <div className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-400">
               Amanhã
             </div>
@@ -298,9 +280,7 @@ export const columns: ColumnDef<Appointment>[] = [
 
       return (
         <div className="text-center">
-          <div className="text-sm">
-            {format(displayDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-          </div>
+          <div className="text-sm">{formattedDate}</div>
         </div>
       );
     },
