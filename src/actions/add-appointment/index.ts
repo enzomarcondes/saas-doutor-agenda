@@ -1,6 +1,9 @@
 "use server";
 
+"use server";
 import dayjs from "dayjs";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
@@ -11,6 +14,9 @@ import { actionClient } from "@/lib/next-safe-action";
 
 import { getAvailableTimes } from "../get-available-times";
 import { addAppointmentSchema } from "./schema";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export const addAppointment = actionClient
   .schema(addAppointmentSchema)
@@ -42,20 +48,27 @@ export const addAppointment = actionClient
       throw new Error("Horário não disponível ou ocupado");
     }
 
+    // 🔥 CORRIGIR ESTA PARTE:
     const appointmentDateTime = dayjs(parsedInput.date)
+      .tz("America/Sao_Paulo") // ← FORÇA TIMEZONE BRASILEIRO
       .set("hour", parseInt(parsedInput.time.split(":")[0]))
       .set("minute", parseInt(parsedInput.time.split(":")[1]))
+      .utc() // ← CONVERTE PARA UTC ANTES DE SALVAR
       .toDate();
 
-    // 🔥 NOVA LÓGICA DE VENCIMENTO SIMPLIFICADA
+    // 🔥 CORRIGIR VENCIMENTO TAMBÉM:
     let dueDate: Date;
-
     if (parsedInput.dueDate) {
-      // Se usuário definiu uma data, usar ela
-      dueDate = parsedInput.dueDate;
+      dueDate = dayjs(parsedInput.dueDate)
+        .tz("America/Sao_Paulo")
+        .utc()
+        .toDate();
     } else {
-      // 🔥 PADRÃO: +30 dias após agendamento (sem lógica de statusPagamento)
-      dueDate = dayjs(appointmentDateTime).add(30, "days").toDate();
+      dueDate = dayjs(appointmentDateTime)
+        .tz("America/Sao_Paulo")
+        .add(30, "days")
+        .utc()
+        .toDate();
     }
 
     await db.insert(appointmentsTable).values({

@@ -2,6 +2,9 @@
 
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import dayjs from "dayjs";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
 import { ChevronLeft, ChevronRight, Clock, User } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
@@ -18,6 +21,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 interface WeeklyAgendaProps {
   todayAppointments: Array<{
@@ -298,10 +304,9 @@ export default function WeeklyAgenda({ todayAppointments }: WeeklyAgendaProps) {
                   )}
                 >
                   {dayAppointments.map((appointment) => {
-                    const appointmentTime = format(
-                      new Date(appointment.date),
-                      "HH:mm",
-                    );
+                    const appointmentTime = dayjs(appointment.date)
+                      .tz("America/Sao_Paulo")
+                      .format("HH:mm");
 
                     return (
                       <div

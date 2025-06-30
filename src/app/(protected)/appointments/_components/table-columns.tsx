@@ -3,6 +3,9 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import dayjs from "dayjs";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
 import { MoreHorizontal, Trash2 } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
 import { toast } from "sonner";
@@ -17,6 +20,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export interface Appointment {
   id: string;
@@ -235,14 +241,20 @@ export const columns: ColumnDef<Appointment>[] = [
     accessorKey: "date",
     header: () => <div className="text-center">Data Agendamento</div>,
     cell: ({ row }) => {
-      const appointmentDate = new Date(row.original.date);
-      const today = new Date();
-      const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1);
+      // 🔥 CORRIGIR: CONVERTER UTC PARA TIMEZONE LOCAL
+      const appointmentDate = dayjs(row.original.date)
+        .tz("America/Sao_Paulo") // ← CONVERTE UTC PARA BRASIL
+        .toDate();
 
-      const isToday = appointmentDate.toDateString() === today.toDateString();
+      const today = dayjs().tz("America/Sao_Paulo").toDate();
+      const tomorrow = dayjs().tz("America/Sao_Paulo").add(1, "day").toDate();
+
+      const isToday =
+        dayjs(appointmentDate).format("YYYY-MM-DD") ===
+        dayjs(today).format("YYYY-MM-DD");
       const isTomorrow =
-        appointmentDate.toDateString() === tomorrow.toDateString();
+        dayjs(appointmentDate).format("YYYY-MM-DD") ===
+        dayjs(tomorrow).format("YYYY-MM-DD");
 
       if (isToday) {
         return (
