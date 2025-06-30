@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "lint:fix": "next lint --fix",
+    "format": "next lint --fix && prettier --write .",
+    "pre-deploy": "npm run lint:fix && npm run build"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
