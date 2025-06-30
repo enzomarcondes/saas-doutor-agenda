@@ -1,4 +1,5 @@
 "use client";
+
 import { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -19,9 +20,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
 // 🔥 CONFIGURAR DAYJS
 dayjs.extend(utc);
 dayjs.extend(timezone);
+
 export interface Appointment {
   id: string;
   date: Date;
@@ -239,18 +242,30 @@ export const columns: ColumnDef<Appointment>[] = [
     accessorKey: "date",
     header: () => <div className="text-center">Data Agendamento</div>,
     cell: ({ row }) => {
-      // 🔥 CORREÇÃO: CONVERTER UTC PARA BRASIL
+      // 🔥 DEBUG: VAMOS ADICIONAR LOGS TEMPORÁRIOS
+      console.log("🕐 Raw date from DB:", row.original.date);
+      console.log("🕐 UTC parsed:", dayjs.utc(row.original.date).format());
+      console.log(
+        "🕐 Brazil converted:",
+        dayjs.utc(row.original.date).tz("America/Sao_Paulo").format(),
+      );
+
+      // 🔥 CONVERSÃO GARANTIDA UTC → BRASIL
       const appointmentDateBR = dayjs
         .utc(row.original.date)
         .tz("America/Sao_Paulo");
       const todayBR = dayjs().tz("America/Sao_Paulo");
       const tomorrowBR = todayBR.add(1, "day");
+
       const isToday =
         appointmentDateBR.format("YYYY-MM-DD") === todayBR.format("YYYY-MM-DD");
       const isTomorrow =
         appointmentDateBR.format("YYYY-MM-DD") ===
         tomorrowBR.format("YYYY-MM-DD");
+
+      // 🔥 IMPORTANTE: USAR appointmentDateBR.toDate() PARA EXIBIÇÃO
       const displayDate = appointmentDateBR.toDate();
+
       if (isToday) {
         return (
           <div className="text-center">
@@ -265,6 +280,7 @@ export const columns: ColumnDef<Appointment>[] = [
           </div>
         );
       }
+
       if (isTomorrow) {
         return (
           <div className="text-center">
@@ -279,6 +295,7 @@ export const columns: ColumnDef<Appointment>[] = [
           </div>
         );
       }
+
       return (
         <div className="text-center">
           <div className="text-sm">
