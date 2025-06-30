@@ -17,7 +17,6 @@ import { auth } from "@/lib/auth";
 
 import AppointmentsChart from "./_components/appointments-chart";
 import { MonthPicker } from "./_components/month-picker";
-import SmartNotifications from "./_components/smart-notifications";
 import StatsCards from "./_components/stats-cards";
 import WeeklyAgenda from "./_components/weekly-agenda";
 
@@ -90,11 +89,8 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
             totalDoctors={totalDoctors.total}
           />
 
-          {/* 📈 GRÁFICO + NOTIFICAÇÕES INTELIGENTES */}
-          <div className="grid grid-cols-[2.25fr_1fr] gap-6">
-            <AppointmentsChart dailyAppointmentsData={dailyAppointmentsData} />
-            <SmartNotifications todayAppointments={todayAppointments} />
-          </div>
+          {/* 📈 GRÁFICO DE AGENDAMENTOS */}
+          <AppointmentsChart dailyAppointmentsData={dailyAppointmentsData} />
 
           {/* 📅 AGENDA SEMANAL INTERATIVA */}
           <div className="w-full">

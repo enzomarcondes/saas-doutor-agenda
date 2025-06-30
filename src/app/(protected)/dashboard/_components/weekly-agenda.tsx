@@ -25,7 +25,7 @@ interface WeeklyAgendaProps {
     date: Date;
     appointmentPriceInCents: number;
     status: string;
-    statusPagamento: string;
+    // statusPagamento: string; ← REMOVIDO
     patient: {
       id: string;
       name: string;
