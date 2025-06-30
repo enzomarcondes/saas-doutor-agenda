@@ -1,4 +1,6 @@
 import dayjs from "dayjs";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
 import { and, asc, count, desc, eq, gte, lte, sql, sum } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -8,6 +10,10 @@ import {
   patientsTable,
   servicesTable,
 } from "@/db/schema";
+
+// 🔥 CONFIGURAR DAYJS
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 interface Params {
   from: string;
@@ -22,8 +28,13 @@ interface Params {
 }
 
 export const getDashboard = async ({ from, to, session }: Params) => {
-  const chartStartDate = new Date(from);
-  const chartEndDate = new Date(to);
+  // 🔥 CORRIGIR CRIAÇÃO DE DATAS COM TIMEZONE
+  const chartStartDate = dayjs.tz(from, "America/Sao_Paulo").utc().toDate();
+  const chartEndDate = dayjs
+    .tz(to, "America/Sao_Paulo")
+    .endOf("day")
+    .utc()
+    .toDate();
 
   // 🔥 CALCULAR SEMANA ATUAL PARA AGENDA
   const today = dayjs();
@@ -37,7 +48,7 @@ export const getDashboard = async ({ from, to, session }: Params) => {
     [totalDoctors],
     topDoctors,
     topServices,
-    weeklyAppointments, // 🔥 RENOMEADO E EXPANDIDO
+    weeklyAppointments,
     dailyAppointmentsData,
   ] = await Promise.all([
     db
@@ -48,8 +59,8 @@ export const getDashboard = async ({ from, to, session }: Params) => {
       .where(
         and(
           eq(appointmentsTable.clinicId, session.user.clinic.id),
-          gte(appointmentsTable.date, new Date(from)),
-          lte(appointmentsTable.date, new Date(to)),
+          gte(appointmentsTable.date, chartStartDate),
+          lte(appointmentsTable.date, chartEndDate),
         ),
       ),
     db
@@ -60,8 +71,8 @@ export const getDashboard = async ({ from, to, session }: Params) => {
       .where(
         and(
           eq(appointmentsTable.clinicId, session.user.clinic.id),
-          gte(appointmentsTable.date, new Date(from)),
-          lte(appointmentsTable.date, new Date(to)),
+          gte(appointmentsTable.date, chartStartDate),
+          lte(appointmentsTable.date, chartEndDate),
         ),
       ),
     db
@@ -88,8 +99,8 @@ export const getDashboard = async ({ from, to, session }: Params) => {
         appointmentsTable,
         and(
           eq(appointmentsTable.doctorId, doctorsTable.id),
-          gte(appointmentsTable.date, new Date(from)),
-          lte(appointmentsTable.date, new Date(to)),
+          gte(appointmentsTable.date, chartStartDate),
+          lte(appointmentsTable.date, chartEndDate),
         ),
       )
       .where(eq(doctorsTable.clinicId, session.user.clinic.id))
@@ -109,13 +120,12 @@ export const getDashboard = async ({ from, to, session }: Params) => {
       .where(
         and(
           eq(appointmentsTable.clinicId, session.user.clinic.id),
-          gte(appointmentsTable.date, new Date(from)),
-          lte(appointmentsTable.date, new Date(to)),
+          gte(appointmentsTable.date, chartStartDate),
+          lte(appointmentsTable.date, chartEndDate),
         ),
       )
       .groupBy(servicesTable.name)
       .orderBy(desc(count(appointmentsTable.id))),
-    // 🔥 AGENDAMENTOS DA SEMANA ATUAL (NÃO SÓ HOJE)
     db.query.appointmentsTable.findMany({
       where: and(
         eq(appointmentsTable.clinicId, session.user.clinic.id),
@@ -157,7 +167,7 @@ export const getDashboard = async ({ from, to, session }: Params) => {
     totalDoctors,
     topDoctors,
     topServices,
-    todayAppointments: weeklyAppointments, // 🔥 RENOMEADO PARA MANTER COMPATIBILIDADE
+    todayAppointments: weeklyAppointments,
     dailyAppointmentsData,
   };
 };

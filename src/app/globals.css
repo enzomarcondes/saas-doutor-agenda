@@ -112,6 +112,30 @@
   --sidebar-ring: oklch(0.488 0.243 264.376);
 }
 
+/* 🎯 DESIGN MAIS COMPACTO - RESPONSIVO */
+html {
+  font-size: 14px; /* Base reduzida para desktop */
+}
+
+/* 📱 RESPONSIVO - Diferentes escalas por dispositivo */
+@media (max-width: 768px) {
+  html {
+    font-size: 16px; /* Normal no mobile para legibilidade */
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  html {
+    font-size: 15px; /* Intermediário em tablets */
+  }
+}
+
+@media (min-width: 1025px) {
+  html {
+    font-size: 14px; /* Compacto em desktop */
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -120,6 +144,7 @@
     @apply bg-background text-foreground;
   }
 }
+
 /* Adicione no final do seu globals.css */
 [data-sidebar="menu-button"][data-active="true"] {
   background-color: #3b82f6 !important;
@@ -134,6 +159,7 @@
 [data-sidebar="menu-button"][data-active="true"] svg {
   color: white !important;
 }
+
 /* Correção para botões no tema escuro */
 .dark button[class*="bg-blue"],
 .dark .bg-blue-500,

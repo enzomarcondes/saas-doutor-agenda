@@ -15,7 +15,6 @@ import { getDashboard } from "@/data/get-dashboard";
 import WithAuthentication from "@/hocs/with-authentication";
 import { auth } from "@/lib/auth";
 
-import AppointmentsChart from "./_components/appointments-chart";
 import { MonthPicker } from "./_components/month-picker";
 import StatsCards from "./_components/stats-cards";
 import WeeklyAgenda from "./_components/weekly-agenda";
@@ -51,7 +50,6 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     totalPatients,
     totalDoctors,
     todayAppointments,
-    dailyAppointmentsData,
   } = await getDashboard({
     from,
     to,
@@ -88,10 +86,6 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
             totalPatients={totalPatients.total}
             totalDoctors={totalDoctors.total}
           />
-
-          {/* 📈 GRÁFICO DE AGENDAMENTOS */}
-          <AppointmentsChart dailyAppointmentsData={dailyAppointmentsData} />
-
           {/* 📅 AGENDA SEMANAL INTERATIVA */}
           <div className="w-full">
             <WeeklyAgenda todayAppointments={todayAppointments} />
