@@ -1,6 +1,8 @@
 "use server";
 
 import dayjs from "dayjs";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { z } from "zod";
@@ -10,6 +12,10 @@ import { appointmentsTable, doctorsTable } from "@/db/schema";
 import { generateTimeSlots } from "@/helpers/time";
 import { auth } from "@/lib/auth";
 import { actionClient } from "@/lib/next-safe-action";
+
+// 🔥 CONFIGURAR DAYJS
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export const getAvailableTimes = actionClient
   .schema(
@@ -62,11 +68,23 @@ export const getAvailableTimes = actionClient
       where: eq(appointmentsTable.doctorId, parsedInput.doctorId),
     });
 
+    // 🔥 CORREÇÃO PRINCIPAL: CONVERTER UTC PARA BRASIL ANTES DE COMPARAR
     const appointmentsOnSelectedDate = appointments
       .filter((appointment) => {
-        return dayjs(appointment.date).isSame(parsedInput.date, "day");
+        // 🔥 CONVERTER UTC PARA BRASIL PARA COMPARAR DIA
+        const appointmentDateBR = dayjs
+          .utc(appointment.date)
+          .tz("America/Sao_Paulo");
+        const selectedDateBR = dayjs.tz(parsedInput.date, "America/Sao_Paulo");
+        return appointmentDateBR.isSame(selectedDateBR, "day");
       })
-      .map((appointment) => dayjs(appointment.date).format("HH:mm:ss"));
+      .map((appointment) => {
+        // 🔥 CONVERTER UTC PARA BRASIL PARA PEGAR HORÁRIO
+        const appointmentTimeBR = dayjs
+          .utc(appointment.date)
+          .tz("America/Sao_Paulo");
+        return appointmentTimeBR.format("HH:mm:ss");
+      });
 
     const timeSlots = generateTimeSlots();
 
