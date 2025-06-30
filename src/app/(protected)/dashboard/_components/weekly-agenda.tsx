@@ -304,7 +304,8 @@ export default function WeeklyAgenda({ todayAppointments }: WeeklyAgendaProps) {
                   )}
                 >
                   {dayAppointments.map((appointment) => {
-                    const appointmentTime = dayjs(appointment.date)
+                    const appointmentTime = dayjs
+                      .utc(appointment.date)
                       .tz("America/Sao_Paulo")
                       .format("HH:mm");
 

@@ -1,6 +1,5 @@
 "use server";
 
-"use server";
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
@@ -15,6 +14,7 @@ import { actionClient } from "@/lib/next-safe-action";
 import { getAvailableTimes } from "../get-available-times";
 import { addAppointmentSchema } from "./schema";
 
+// 🔥 CONFIGURAR DAYJS COM TIMEZONE
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
@@ -48,24 +48,26 @@ export const addAppointment = actionClient
       throw new Error("Horário não disponível ou ocupado");
     }
 
-    // 🔥 CORRIGIR ESTA PARTE:
-    const appointmentDateTime = dayjs(parsedInput.date)
-      .tz("America/Sao_Paulo") // ← FORÇA TIMEZONE BRASILEIRO
-      .set("hour", parseInt(parsedInput.time.split(":")[0]))
-      .set("minute", parseInt(parsedInput.time.split(":")[1]))
-      .utc() // ← CONVERTE PARA UTC ANTES DE SALVAR
+    // 🔥 CORREÇÃO PRINCIPAL: CRIAR DATA EM TIMEZONE BRASILEIRO E CONVERTER PARA UTC
+    const appointmentDateTime = dayjs
+      .tz(
+        `${dayjs(parsedInput.date).format("YYYY-MM-DD")} ${parsedInput.time}`,
+        "YYYY-MM-DD HH:mm",
+        "America/Sao_Paulo",
+      )
+      .utc()
       .toDate();
 
-    // 🔥 CORRIGIR VENCIMENTO TAMBÉM:
+    // 🔥 VENCIMENTO TAMBÉM EM TIMEZONE BRASILEIRO
     let dueDate: Date;
     if (parsedInput.dueDate) {
-      dueDate = dayjs(parsedInput.dueDate)
-        .tz("America/Sao_Paulo")
+      dueDate = dayjs
+        .tz(parsedInput.dueDate, "America/Sao_Paulo")
         .utc()
         .toDate();
     } else {
-      dueDate = dayjs(appointmentDateTime)
-        .tz("America/Sao_Paulo")
+      dueDate = dayjs
+        .tz(appointmentDateTime, "America/Sao_Paulo")
         .add(30, "days")
         .utc()
         .toDate();
@@ -75,7 +77,7 @@ export const addAppointment = actionClient
       ...parsedInput,
       clinicId: session?.user.clinic?.id,
       date: appointmentDateTime,
-      dueDate: dueDate, // 🔥 LÓGICA SIMPLIFICADA
+      dueDate: dueDate,
     });
 
     revalidatePath("/appointments");

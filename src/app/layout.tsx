@@ -14,7 +14,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "Clinic Easy",
+  title: "dontoSys",
   description: "Gerenciamento de clínica odontológica",
 };
 

@@ -1,5 +1,4 @@
 "use client";
-
 import { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -20,16 +19,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
+// 🔥 CONFIGURAR DAYJS
 dayjs.extend(utc);
 dayjs.extend(timezone);
-
 export interface Appointment {
   id: string;
   date: Date;
   appointmentPriceInCents: number;
   status: string;
-  dueDate?: Date | null; // 🔥 MANTÉM NO TIPO, SÓ NÃO EXIBE
+  dueDate?: Date | null;
   serviceId?: string | null;
   patient: {
     id: string;
@@ -241,26 +239,23 @@ export const columns: ColumnDef<Appointment>[] = [
     accessorKey: "date",
     header: () => <div className="text-center">Data Agendamento</div>,
     cell: ({ row }) => {
-      // 🔥 CORRIGIR: CONVERTER UTC PARA TIMEZONE LOCAL
-      const appointmentDate = dayjs(row.original.date)
-        .tz("America/Sao_Paulo") // ← CONVERTE UTC PARA BRASIL
-        .toDate();
-
-      const today = dayjs().tz("America/Sao_Paulo").toDate();
-      const tomorrow = dayjs().tz("America/Sao_Paulo").add(1, "day").toDate();
-
+      // 🔥 CORREÇÃO: CONVERTER UTC PARA BRASIL
+      const appointmentDateBR = dayjs
+        .utc(row.original.date)
+        .tz("America/Sao_Paulo");
+      const todayBR = dayjs().tz("America/Sao_Paulo");
+      const tomorrowBR = todayBR.add(1, "day");
       const isToday =
-        dayjs(appointmentDate).format("YYYY-MM-DD") ===
-        dayjs(today).format("YYYY-MM-DD");
+        appointmentDateBR.format("YYYY-MM-DD") === todayBR.format("YYYY-MM-DD");
       const isTomorrow =
-        dayjs(appointmentDate).format("YYYY-MM-DD") ===
-        dayjs(tomorrow).format("YYYY-MM-DD");
-
+        appointmentDateBR.format("YYYY-MM-DD") ===
+        tomorrowBR.format("YYYY-MM-DD");
+      const displayDate = appointmentDateBR.toDate();
       if (isToday) {
         return (
           <div className="text-center">
             <div className="text-sm">
-              {format(appointmentDate, "dd/MM/yyyy 'às' HH:mm", {
+              {format(displayDate, "dd/MM/yyyy 'às' HH:mm", {
                 locale: ptBR,
               })}
             </div>
@@ -270,12 +265,11 @@ export const columns: ColumnDef<Appointment>[] = [
           </div>
         );
       }
-
       if (isTomorrow) {
         return (
           <div className="text-center">
             <div className="text-sm">
-              {format(appointmentDate, "dd/MM/yyyy 'às' HH:mm", {
+              {format(displayDate, "dd/MM/yyyy 'às' HH:mm", {
                 locale: ptBR,
               })}
             </div>
@@ -285,11 +279,10 @@ export const columns: ColumnDef<Appointment>[] = [
           </div>
         );
       }
-
       return (
         <div className="text-center">
           <div className="text-sm">
-            {format(appointmentDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+            {format(displayDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
           </div>
         </div>
       );
@@ -306,7 +299,6 @@ export const columns: ColumnDef<Appointment>[] = [
       className: "pr-1",
     },
   },
-  // 🔥 REMOVIDA A COLUNA DE VENCIMENTO - AGORA SÓ TEM 7 COLUNAS
   {
     id: "actions",
     cell: ({ row }) => <AppointmentActionsMenu appointment={row.original} />,
