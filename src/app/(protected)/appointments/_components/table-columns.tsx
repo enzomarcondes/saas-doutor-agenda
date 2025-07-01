@@ -30,6 +30,8 @@ export interface Appointment {
   status: string;
   dueDate?: Date | null;
   serviceId?: string | null;
+  // 🔥 NOVO CAMPO: OBSERVAÇÕES
+  observations?: string | null;
   patient: {
     id: string;
     name: string;
@@ -288,12 +290,36 @@ export const columns: ColumnDef<Appointment>[] = [
       className: "pl-1",
     },
   },
+  // 🔥 NOVA COLUNA: OBSERVAÇÕES
+
   {
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => <StatusAgendamentoBadge appointment={row.original} />,
     meta: {
       className: "pr-1",
+    },
+  },
+  {
+    accessorKey: "observations",
+    header: "Observações",
+    cell: ({ row }) => {
+      const observations = row.original.observations;
+      if (!observations) {
+        return <div className="text-muted-foreground text-sm">-</div>;
+      }
+
+      // Truncar texto se for muito longo
+      const truncated =
+        observations.length > 50
+          ? observations.substring(0, 50) + "..."
+          : observations;
+
+      return (
+        <div className="max-w-[200px] text-sm" title={observations}>
+          {truncated}
+        </div>
+      );
     },
   },
   {

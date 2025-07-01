@@ -11,7 +11,7 @@ import { upsertPatientSchema } from "./schema";
 export const upsertPatient = protectedWithClinicActionClient
   .schema(upsertPatientSchema)
   .action(async ({ parsedInput, ctx }) => {
-    await db
+    const result = await db
       .insert(patientsTable)
       .values({
         ...parsedInput,
@@ -23,6 +23,11 @@ export const upsertPatient = protectedWithClinicActionClient
         set: {
           ...parsedInput,
         },
-      });
+      })
+      .returning(); // 🔥 RETORNAR DADOS CRIADOS
+
     revalidatePath("/patients");
+
+    // 🔥 RETORNAR O PACIENTE CRIADO/ATUALIZADO
+    return result[0];
   });

@@ -18,6 +18,10 @@ export const patientsTableColumns: ColumnDef<Patient>[] = [
     id: "email",
     accessorKey: "email",
     header: "Email",
+    cell: (params) => {
+      const patient = params.row.original;
+      return patient.email || "Não informado";
+    },
   },
   {
     id: "phoneNumber",
@@ -32,6 +36,27 @@ export const patientsTableColumns: ColumnDef<Patient>[] = [
         "($1) $2-$3",
       );
       return formatted;
+    },
+  },
+  {
+    id: "cpf",
+    accessorKey: "cpf",
+    header: "CPF",
+    cell: (params) => {
+      const patient = params.row.original;
+      if (!patient.cpf) return "Não informado";
+      return patient.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    },
+  },
+  {
+    id: "city",
+    header: "Cidade",
+    cell: (params) => {
+      const patient = params.row.original;
+      if (patient.cidade && patient.uf) {
+        return `${patient.cidade} - ${patient.uf}`;
+      }
+      return "Não informado";
     },
   },
   {

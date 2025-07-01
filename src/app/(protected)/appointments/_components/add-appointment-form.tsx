@@ -1,10 +1,10 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query"; // 🔥 REMOVER useQueryClient
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import dayjs from "dayjs";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Check, Plus, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NumericFormat } from "react-number-format";
 
@@ -13,9 +13,11 @@ import { getAvailableTimes } from "@/actions/get-available-times";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
+  Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,8 +33,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { doctorsTable } from "@/db/schema";
+import { Textarea } from "@/components/ui/textarea";
+import { doctorsTable, patientsTable } from "@/db/schema";
 import { cn } from "@/lib/utils";
+
+// 🔥 IMPORTAR COMPONENTE DE CADASTRO DE PACIENTE
+import UpsertPatientForm from "../../patients/_components/upsert-patient-form";
 
 interface AddAppointmentFormProps {
   patients: Array<{
@@ -53,7 +59,7 @@ interface AddAppointmentFormProps {
 }
 
 export function AddAppointmentForm({
-  patients,
+  patients: initialPatients,
   doctors,
   services,
   onSuccess,
@@ -67,13 +73,26 @@ export function AddAppointmentForm({
   const [status, setStatus] = useState<
     "agendado" | "confirmado" | "cancelado" | "nao_compareceu" | "finalizado"
   >("agendado");
-  // 🔥 REMOVIDO: const [statusPagamento, setStatusPagamento] = useState<"pago" | "a_receber">("a_receber");
   const [dueDate, setDueDate] = useState<Date>();
+  const [observations, setObservations] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   // 🔥 NOVOS ESTADOS PARA CONTROLAR POPOVERS
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isDueDatePickerOpen, setIsDueDatePickerOpen] = useState(false);
+
+  // 🔥 NOVOS ESTADOS PARA BUSCA E CADASTRO DE PACIENTE
+  const [isPatientDropdownOpen, setIsPatientDropdownOpen] = useState(false);
+  const [patientSearchValue, setPatientSearchValue] = useState("");
+  const [isAddPatientDialogOpen, setIsAddPatientDialogOpen] = useState(false);
+
+  // 🔥 LISTA DE PACIENTES (inicia com os dados passados)
+  const [patients, setPatients] = useState(initialPatients);
+
+  // 🔥 FILTRAR PACIENTES BASEADO NA BUSCA
+  const filteredPatients = patients.filter((patient) =>
+    patient.name.toLowerCase().includes(patientSearchValue.toLowerCase()),
+  );
 
   // 🔥 BUSCAR HORÁRIOS DISPONÍVEIS AUTOMATICAMENTE
   const { data: availableTimes } = useQuery({
@@ -110,7 +129,7 @@ export function AddAppointmentForm({
     }
   };
 
-  // 🔥 VERIFICAR SE DATA ESTÁ DISPONÍVEL PARA O DOUTOR - CORRIGIDO
+  // 🔥 VERIFICAR SE DATA ESTÁ DISPONÍVEL PARA O DOUTOR
   const isDateAvailable = (date: Date) => {
     if (!selectedDoctor) return false;
     const doctor = doctors.find((d) => d.id === selectedDoctor);
@@ -118,15 +137,12 @@ export function AddAppointmentForm({
 
     const dayOfWeek = date.getDay();
 
-    // 🔥 CORRIGIR PARA SUPORTAR SPANS QUE ATRAVESSAM A SEMANA
     if (doctor.availableFromWeekDay <= doctor.availableToWeekDay) {
-      // Caso normal: segunda(1) a sexta(5)
       return (
         dayOfWeek >= doctor.availableFromWeekDay &&
         dayOfWeek <= doctor.availableToWeekDay
       );
     } else {
-      // Caso especial: segunda(1) a domingo(0) - atravessa a semana
       return (
         dayOfWeek >= doctor.availableFromWeekDay ||
         dayOfWeek <= doctor.availableToWeekDay
@@ -139,14 +155,13 @@ export function AddAppointmentForm({
     setTime("");
   }, [date, selectedDoctor]);
 
-  // 🔥 CALCULAR VENCIMENTO PADRÃO QUANDO MUDAR DATA (REMOVIDO statusPagamento)
+  // 🔥 CALCULAR VENCIMENTO PADRÃO QUANDO MUDAR DATA
   useEffect(() => {
     if (date) {
-      // 🔥 SEMPRE CALCULAR VENCIMENTO PADRÃO DE 30 DIAS
       const defaultDue = dayjs(date).add(30, "days").toDate();
       setDueDate(defaultDue);
     }
-  }, [date]); // 🔥 REMOVIDO statusPagamento da dependência
+  }, [date]);
 
   // 🔥 FUNÇÕES PARA FECHAR POPOVERS AO SELECIONAR DATA
   const handleDateSelect = (selectedDate: Date | undefined) => {
@@ -157,6 +172,36 @@ export function AddAppointmentForm({
   const handleDueDateSelect = (selectedDate: Date | undefined) => {
     setDueDate(selectedDate);
     setIsDueDatePickerOpen(false);
+  };
+
+  // 🔥 FUNÇÃO PARA SELECIONAR PACIENTE
+  const handlePatientSelect = (patientId: string) => {
+    setSelectedPatient(patientId);
+    setPatientSearchValue(patients.find((p) => p.id === patientId)?.name || "");
+    setIsPatientDropdownOpen(false);
+  };
+
+  // 🔥 LIMPAR SELEÇÃO DE PACIENTE
+  const handleClearPatient = () => {
+    setSelectedPatient("");
+    setPatientSearchValue("");
+  };
+
+  // 🔥 CALLBACK QUANDO PACIENTE É CRIADO
+  const handlePatientCreated = (
+    newPatient?: typeof patientsTable.$inferSelect,
+  ) => {
+    if (newPatient) {
+      // 1. Adicionar à lista local
+      setPatients((prev) => [...prev, newPatient]);
+
+      // 2. Selecionar automaticamente
+      setSelectedPatient(newPatient.id);
+      setPatientSearchValue(newPatient.name);
+    }
+
+    // 3. Fechar modal
+    setIsAddPatientDialogOpen(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -187,8 +232,8 @@ export function AddAppointmentForm({
         serviceId: selectedService || undefined,
         appointmentPriceInCents: priceInCents,
         status,
-        // 🔥 REMOVIDO: statusPagamento,
         dueDate,
+        observations: observations.trim() || undefined,
       };
 
       await addAppointment(appointmentData);
@@ -201,8 +246,9 @@ export function AddAppointmentForm({
       setSelectedService("");
       setAppointmentPrice("");
       setStatus("agendado");
-      // 🔥 REMOVIDO: setStatusPagamento("a_receber");
       setDueDate(undefined);
+      setObservations("");
+      setPatientSearchValue("");
 
       alert("Agendamento criado com sucesso!");
       onSuccess();
@@ -224,21 +270,143 @@ export function AddAppointmentForm({
       </DialogHeader>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* 1. PACIENTE */}
+        {/* 🔥 1. PACIENTE - BUSCA SIMPLIFICADA */}
         <div className="space-y-2">
           <Label htmlFor="patient">Paciente *</Label>
-          <Select value={selectedPatient} onValueChange={setSelectedPatient}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione um paciente" />
-            </SelectTrigger>
-            <SelectContent>
-              {patients.map((patient) => (
-                <SelectItem key={patient.id} value={patient.id}>
-                  {patient.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Popover
+                open={isPatientDropdownOpen}
+                onOpenChange={setIsPatientDropdownOpen}
+              >
+                <PopoverTrigger asChild>
+                  <div className="relative">
+                    <Input
+                      placeholder="Buscar paciente..."
+                      value={patientSearchValue}
+                      onChange={(e) => {
+                        setPatientSearchValue(e.target.value);
+                        setIsPatientDropdownOpen(true); // ✅ SEMPRE ABRE AO DIGITAR
+                        // ✅ LIMPA SELEÇÃO APENAS SE CAMPO FICAR VAZIO
+                        if (!e.target.value) {
+                          setSelectedPatient("");
+                        }
+                      }}
+                      onFocus={() => setIsPatientDropdownOpen(true)} // ✅ ABRE AO CLICAR
+                      onClick={() => setIsPatientDropdownOpen(true)} // ✅ ABRE AO CLICAR
+                    />
+                    {selectedPatient && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-1/2 right-1 h-6 w-6 -translate-y-1/2 p-0"
+                        onClick={handleClearPatient}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0">
+                  <div className="max-h-60 overflow-y-auto">
+                    {/* ✅ MOSTRAR TODOS OS PACIENTES SE NÃO DIGITOU NADA */}
+                    {patientSearchValue === "" ? (
+                      <div className="p-1">
+                        {patients.map((patient) => (
+                          <div
+                            key={patient.id}
+                            className={cn(
+                              "hover:bg-accent flex cursor-pointer items-center gap-2 rounded-sm p-2",
+                              selectedPatient === patient.id && "bg-accent",
+                            )}
+                            onClick={() => handlePatientSelect(patient.id)}
+                          >
+                            <Check
+                              className={cn(
+                                "h-4 w-4",
+                                selectedPatient === patient.id
+                                  ? "opacity-100"
+                                  : "opacity-0",
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {patient.name}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : filteredPatients.length > 0 ? (
+                      /* ✅ MOSTRAR PACIENTES FILTRADOS QUANDO DIGITAR */
+                      <div className="p-1">
+                        {filteredPatients.map((patient) => (
+                          <div
+                            key={patient.id}
+                            className={cn(
+                              "hover:bg-accent flex cursor-pointer items-center gap-2 rounded-sm p-2",
+                              selectedPatient === patient.id && "bg-accent",
+                            )}
+                            onClick={() => handlePatientSelect(patient.id)}
+                          >
+                            <Check
+                              className={cn(
+                                "h-4 w-4",
+                                selectedPatient === patient.id
+                                  ? "opacity-100"
+                                  : "opacity-0",
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {patient.name}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      /* ✅ NENHUM RESULTADO + BOTÃO CADASTRAR */
+                      <div className="flex flex-col items-center gap-2 p-4">
+                        <Search className="text-muted-foreground h-8 w-8" />
+                        <p className="text-muted-foreground text-sm">
+                          Nenhum paciente encontrado
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setIsPatientDropdownOpen(false);
+                            setIsAddPatientDialogOpen(true);
+                          }}
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Cadastrar novo paciente
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* 🔥 BOTÃO CADASTRAR PACIENTE */}
+            <Dialog
+              open={isAddPatientDialogOpen}
+              onOpenChange={setIsAddPatientDialogOpen}
+            >
+              <DialogTrigger asChild>
+                <Button type="button" variant="outline" size="icon">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <UpsertPatientForm
+                isOpen={isAddPatientDialogOpen}
+                onSuccess={handlePatientCreated}
+              />
+            </Dialog>
+          </div>
         </div>
 
         {/* 2. DOUTOR */}
@@ -258,7 +426,7 @@ export function AddAppointmentForm({
           </Select>
         </div>
 
-        {/* 3. DATA - COM FECHAMENTO AUTOMÁTICO */}
+        {/* 3. DATA */}
         <div className="space-y-2">
           <Label htmlFor="date">Data *</Label>
           <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
@@ -381,9 +549,20 @@ export function AddAppointmentForm({
           </Select>
         </div>
 
-        {/* 🔥 REMOVIDO COMPLETAMENTE O SELECT DE STATUS PAGAMENTO */}
+        {/* 8. OBSERVAÇÕES */}
+        <div className="space-y-2">
+          <Label htmlFor="observations">Observações</Label>
+          <Textarea
+            id="observations"
+            value={observations}
+            onChange={(e) => setObservations(e.target.value)}
+            placeholder="Exemplo: Cor A1, dente 22"
+            rows={3}
+            className="resize-none"
+          />
+        </div>
 
-        {/* 8. DATA DE VENCIMENTO - COM FECHAMENTO AUTOMÁTICO */}
+        {/* 9. DATA DE VENCIMENTO */}
         <div className="space-y-2">
           <Label htmlFor="dueDate">Data de Vencimento</Label>
           <Popover

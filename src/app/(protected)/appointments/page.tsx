@@ -39,6 +39,8 @@ export default async function AppointmentsPage() {
             status: appointmentsTable.status,
             dueDate: appointmentsTable.dueDate,
             serviceId: appointmentsTable.serviceId,
+            // 🔥 NOVO CAMPO: OBSERVAÇÕES
+            observations: appointmentsTable.observations,
             patient: {
               id: patientsTable.id,
               name: patientsTable.name,
@@ -101,6 +103,8 @@ export default async function AppointmentsPage() {
       status: appointment.status,
       dueDate: appointment.dueDate,
       serviceId: appointment.serviceId,
+      // 🔥 NOVO CAMPO: OBSERVAÇÕES
+      observations: appointment.observations,
       patient: {
         id: appointment.patient.id,
         name: appointment.patient.name,

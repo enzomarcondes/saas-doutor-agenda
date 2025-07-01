@@ -221,10 +221,20 @@ export const patientsTable = pgTable("patients", {
     .notNull()
     .references(() => clinicsTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  email: text("email").notNull(),
+  email: text("email"), // 🔥 REMOVIDO .notNull() - AGORA OPCIONAL
   phoneNumber: text("phone_number").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
   sex: patientSexEnum("sex").notNull(),
+
+  // 🔥 NOVOS CAMPOS DE ENDEREÇO E DOCUMENTO
+  cpf: text("cpf"), // CPF opcional
+  cep: text("cep"), // CEP opcional
+  bairro: text("bairro"), // Bairro opcional
+  rua: text("rua"), // Rua opcional
+  numero: text("numero"), // Número opcional
+  cidade: text("cidade"), // Cidade opcional
+  uf: text("uf"), // UF opcional
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
     .$onUpdate(() => new Date()),
@@ -272,6 +282,10 @@ export const appointmentsTable = pgTable("appointments", {
 
   // 🔥 CAMPO DE DATA DE VENCIMENTO
   dueDate: timestamp("due_date"),
+
+  // 🔥 NOVO CAMPO: OBSERVAÇÕES
+  observations: text("observations"),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

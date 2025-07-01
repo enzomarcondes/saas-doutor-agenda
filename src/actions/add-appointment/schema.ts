@@ -27,7 +27,8 @@ export const addAppointmentSchema = z.object({
       "finalizado",
     ])
     .default("agendado"),
-  // 🔥 REMOVIDO: statusPagamento: z.enum(["pago", "a_receber"]).default("a_receber"),
   // 🔥 CAMPO: DATA DE VENCIMENTO
   dueDate: z.date().optional(),
+  // 🔥 NOVO CAMPO: OBSERVAÇÕES
+  observations: z.string().optional(),
 });

@@ -5,10 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import dayjs from "dayjs";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
 import {
   CalendarIcon,
   Clock,
   CreditCard,
+  FileText,
   Stethoscope,
   User,
 } from "lucide-react";
@@ -53,9 +56,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 import { Appointment } from "./table-columns";
+// 🔥 CONFIGURAR DAYJS
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const updateAppointmentFormSchema = z.object({
   id: z.string(),
@@ -73,6 +80,8 @@ const updateAppointmentFormSchema = z.object({
     .optional(),
   dueDate: z.date().optional(),
   serviceId: z.string().nullable().optional(),
+  // 🔥 CAMPO: OBSERVAÇÕES
+  observations: z.string().optional(),
 });
 
 type UpdateAppointmentFormData = z.infer<typeof updateAppointmentFormSchema>;
@@ -107,8 +116,9 @@ export function EditAppointmentDialog({
   const [dateCalendarOpen, setDateCalendarOpen] = useState(false);
   const [dueDateCalendarOpen, setDueDateCalendarOpen] = useState(false);
 
+  // 🔥 CORREÇÃO: Extrair horário com timezone brasileiro
   const extractTime = (date: Date) => {
-    return date.toTimeString().slice(0, 5);
+    return dayjs(date).tz("America/Sao_Paulo").format("HH:mm");
   };
 
   const form = useForm<UpdateAppointmentFormData>({
@@ -126,12 +136,14 @@ export function EditAppointmentDialog({
         | "finalizado",
       dueDate: defaultValues.dueDate || undefined,
       serviceId: defaultValues.serviceId || null,
+      // 🔥 GARANTIR QUE OBSERVAÇÕES SEJA STRING
+      observations: defaultValues.observations || "",
     },
   });
 
   const watchedDate = form.watch("date");
 
-  // 🔥 CORREÇÃO: Acessar availableTimes.data corretamente
+  // 🔥 BUSCAR HORÁRIOS DISPONÍVEIS
   const { data: availableTimesResult } = useQuery({
     queryKey: ["available-times", watchedDate, defaultValues.doctor.id],
     queryFn: () =>
@@ -143,7 +155,7 @@ export function EditAppointmentDialog({
   });
 
   // 🔥 EXTRAIR OS DADOS CORRETAMENTE
-  const availableTimes = availableTimesResult?.data;
+  const availableTimes = availableTimesResult?.data || [];
 
   const currentDoctor = doctors.find(
     (d) => d.id === defaultValues.doctor.id,
@@ -156,13 +168,33 @@ export function EditAppointmentDialog({
     availableToTime: defaultValues.doctor.availableToTime || "18:00",
   };
 
+  // 🔥 CORREÇÃO: Função de verificação de data disponível mais robusta
   const isDateAvailable = (date: Date) => {
     if (!currentDoctor) return true;
+
     const dayOfWeek = date.getDay();
-    return (
-      dayOfWeek >= currentDoctor.availableFromWeekDay &&
-      dayOfWeek <= currentDoctor.availableToWeekDay
-    );
+    const { availableFromWeekDay, availableToWeekDay } = currentDoctor;
+
+    // 🔥 PERMITIR SEMPRE DATAS NO PASSADO (para não bloquear agendamentos existentes)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+
+    if (checkDate < today) {
+      return true; // Permitir datas passadas para edição
+    }
+
+    // Verificar disponibilidade do doutor
+    if (availableFromWeekDay <= availableToWeekDay) {
+      return (
+        dayOfWeek >= availableFromWeekDay && dayOfWeek <= availableToWeekDay
+      );
+    } else {
+      return (
+        dayOfWeek >= availableFromWeekDay || dayOfWeek <= availableToWeekDay
+      );
+    }
   };
 
   const selectedServiceId = form.watch("serviceId");
@@ -183,11 +215,11 @@ export function EditAppointmentDialog({
     {
       onSuccess: () => {
         toast.success("Agendamento atualizado com sucesso!");
-        form.reset();
         handleOpenChange(false);
       },
       onError: ({ error }) => {
         toast.error(error.serverError ?? "Erro inesperado");
+        console.error("Erro ao atualizar:", error);
       },
     },
   );
@@ -199,21 +231,92 @@ export function EditAppointmentDialog({
     }
   };
 
+  // 🔥 CORREÇÃO: Função onSubmit - comparação de observações
   const onSubmit = (data: UpdateAppointmentFormData) => {
-    if (data.date && data.time) {
-      const [hours, minutes] = data.time.split(":");
-      const combinedDate = new Date(data.date);
-      combinedDate.setHours(parseInt(hours), parseInt(minutes));
-      data.date = combinedDate;
+    console.log("🔥 Dados sendo enviados:", data);
+
+    // 🔥 TIPO ESPECÍFICO para o updateAppointment action
+    const updateData: {
+      id: string;
+      status?:
+        | "agendado"
+        | "confirmado"
+        | "cancelado"
+        | "nao_compareceu"
+        | "finalizado";
+      appointmentPriceInCents?: number;
+      serviceId?: string | null;
+      dueDate?: Date;
+      observations?: string;
+      date?: Date;
+    } = {
+      id: data.id, // ID sempre obrigatório
+    };
+
+    // Só incluir campos que realmente mudaram
+    if (data.status !== defaultValues.status) {
+      updateData.status = data.status;
     }
 
-    executeUpdateAppointment(data);
+    if (
+      data.appointmentPriceInCents !== defaultValues.appointmentPriceInCents
+    ) {
+      updateData.appointmentPriceInCents = data.appointmentPriceInCents;
+    }
+
+    if (data.serviceId !== defaultValues.serviceId) {
+      updateData.serviceId = data.serviceId === "none" ? null : data.serviceId;
+    }
+
+    if (data.dueDate !== defaultValues.dueDate) {
+      updateData.dueDate = data.dueDate;
+    }
+
+    // 🔥 CORREÇÃO: OBSERVAÇÕES - melhor comparação
+    const currentObservations = data.observations || "";
+    const originalObservations = defaultValues.observations || "";
+
+    if (currentObservations !== originalObservations) {
+      updateData.observations = currentObservations;
+      console.log("🔥 Observações mudaram:", {
+        original: originalObservations,
+        nova: currentObservations,
+      });
+    }
+
+    // 🔥 CORREÇÃO: DATA E HORÁRIO - usar timezone brasileiro
+    if (data.date && data.time) {
+      const [hours, minutes] = data.time.split(":");
+
+      // 🔥 USAR TIMEZONE BRASILEIRO
+      const combinedDate = dayjs
+        .tz(data.date, "America/Sao_Paulo")
+        .hour(parseInt(hours))
+        .minute(parseInt(minutes))
+        .second(0)
+        .millisecond(0)
+        .utc()
+        .toDate();
+
+      updateData.date = combinedDate;
+      console.log("🔥 Data combinada:", {
+        original: data.date,
+        time: data.time,
+        combined: combinedDate,
+        formatted: dayjs(combinedDate)
+          .tz("America/Sao_Paulo")
+          .format("DD/MM/YYYY HH:mm"),
+      });
+    }
+
+    console.log("🔥 Update final:", updateData);
+    executeUpdateAppointment(updateData);
   };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="max-h-[95vh] w-[650px] max-w-none">
+      <DialogContent className="max-h-[95vh] w-[700px] max-w-none">
         <DialogHeader className="pb-2">
           <DialogTitle className="flex items-center gap-2 text-sm">
             <Clock className="h-4 w-4" />
@@ -223,58 +326,65 @@ export function EditAppointmentDialog({
 
         <ScrollArea className="max-h-[calc(95vh-100px)]">
           <div className="space-y-6 pr-4">
-            {/* DADOS DO PACIENTE */}
+            {/* 🔥 DADOS DO PACIENTE - LAYOUT MELHORADO */}
             <Card>
-              <CardContent className="pt-3">
-                <div className="mb-3 flex items-center gap-2 text-sm">
+              <CardContent className="pt-4 pb-4">
+                <div className="mb-4 flex items-center gap-2 text-sm">
                   <User className="h-4 w-4 text-blue-500" />
                   <span className="font-semibold">Dados do Paciente</span>
                 </div>
-                <div className="space-y-2">
+                <div className="grid grid-cols-1 gap-3">
                   <div>
-                    <p className="text-muted-foreground mb-1 text-sm font-medium">
-                      Nome
+                    <p className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
+                      Nome Completo
                     </p>
                     <p className="text-sm font-semibold">
                       {defaultValues.patient.name}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground mb-1 text-sm font-medium">
-                      Email
-                    </p>
-                    <p className="text-sm break-all">
-                      {defaultValues.patient.email || "Não informado"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground mb-1 text-sm font-medium">
-                      Telefone
-                    </p>
-                    <p className="text-sm">
-                      {defaultValues.patient.phoneNumber || "Não informado"}
-                    </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
+                        Email
+                      </p>
+                      <p className="text-sm break-all">
+                        {defaultValues.patient.email || "Não informado"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
+                        Telefone
+                      </p>
+                      <p className="text-sm">
+                        {defaultValues.patient.phoneNumber || "Não informado"}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* DENTISTA RESPONSÁVEL */}
+            {/* 🔥 DENTISTA RESPONSÁVEL - CARD SEPARADO */}
             <Card>
-              <CardContent className="pt-3">
-                <div className="mb-3 flex items-center gap-2 text-sm">
+              <CardContent className="pt-4 pb-4">
+                <div className="mb-4 flex items-center gap-2 text-sm">
                   <Stethoscope className="h-4 w-4 text-green-500" />
                   <span className="font-semibold">Dentista Responsável</span>
                 </div>
-                <p className="text-sm font-semibold">
-                  {defaultValues.doctor.name}
-                </p>
+                <div>
+                  <p className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
+                    Profissional
+                  </p>
+                  <p className="text-sm font-semibold">
+                    {defaultValues.doctor.name}
+                  </p>
+                </div>
               </CardContent>
             </Card>
 
             {/* FORMULÁRIO DE AGENDAMENTO */}
             <Card>
-              <CardContent className="pt-3">
+              <CardContent className="pt-4">
                 <div className="mb-4 flex items-center gap-2 text-sm">
                   <CreditCard className="h-4 w-4 text-orange-500" />
                   <span className="font-semibold">Detalhes do Agendamento</span>
@@ -295,7 +405,7 @@ export function EditAppointmentDialog({
                           </FormLabel>
                           <Select
                             onValueChange={field.onChange}
-                            defaultValue={field.value || undefined}
+                            value={field.value || "none"}
                           >
                             <FormControl>
                               <SelectTrigger className="h-10 text-sm">
@@ -366,7 +476,11 @@ export function EditAppointmentDialog({
                                     field.onChange(date);
                                     setDateCalendarOpen(false);
                                   }}
-                                  disabled={(date) => !isDateAvailable(date)}
+                                  disabled={
+                                    isDateAvailable
+                                      ? (date) => !isDateAvailable(date)
+                                      : undefined
+                                  }
                                   initialFocus
                                 />
                               </PopoverContent>
@@ -386,7 +500,7 @@ export function EditAppointmentDialog({
                             </FormLabel>
                             <Select
                               onValueChange={field.onChange}
-                              defaultValue={field.value}
+                              value={field.value}
                             >
                               <FormControl>
                                 <SelectTrigger className="h-10 text-sm">
@@ -394,24 +508,17 @@ export function EditAppointmentDialog({
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                {/* 🔥 CORREÇÃO: Verificar se availableTimes existe e tem dados */}
                                 {availableTimes && availableTimes.length > 0 ? (
-                                  availableTimes.map(
-                                    (timeOption: {
-                                      value: string;
-                                      label: string;
-                                      available: boolean;
-                                    }) => (
-                                      <SelectItem
-                                        key={timeOption.value}
-                                        value={timeOption.value}
-                                        disabled={!timeOption.available}
-                                      >
-                                        {timeOption.label}{" "}
-                                        {!timeOption.available && "(Ocupado)"}
-                                      </SelectItem>
-                                    ),
-                                  )
+                                  availableTimes.map((timeOption) => (
+                                    <SelectItem
+                                      key={timeOption.value}
+                                      value={timeOption.value}
+                                      disabled={!timeOption.available}
+                                    >
+                                      {timeOption.label}{" "}
+                                      {!timeOption.available && "(Ocupado)"}
+                                    </SelectItem>
+                                  ))
                                 ) : (
                                   <SelectItem disabled value="no-times">
                                     Nenhum horário disponível
@@ -469,7 +576,7 @@ export function EditAppointmentDialog({
                           </FormLabel>
                           <Select
                             onValueChange={field.onChange}
-                            defaultValue={field.value}
+                            value={field.value}
                           >
                             <FormControl>
                               <SelectTrigger className="h-10 text-sm">
@@ -545,6 +652,29 @@ export function EditAppointmentDialog({
                               />
                             </PopoverContent>
                           </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* 🔥 OBSERVAÇÕES - CAMPO COMPLETO */}
+                    <FormField
+                      control={form.control}
+                      name="observations"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                            <FileText className="h-4 w-4" />
+                            Observações
+                          </FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              placeholder="Adicione observações sobre o agendamento"
+                              rows={3}
+                              className="resize-none text-sm"
+                            />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}

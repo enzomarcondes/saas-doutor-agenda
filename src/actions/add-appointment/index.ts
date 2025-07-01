@@ -78,6 +78,7 @@ export const addAppointment = actionClient
       clinicId: session?.user.clinic?.id,
       date: appointmentDateTime,
       dueDate: dueDate,
+      // 🔥 NOVO CAMPO: OBSERVAÇÕES (já incluído no parsedInput via schema)
     });
 
     revalidatePath("/appointments");

@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, Phone, User } from "lucide-react";
+import { FileText, Mail, MapPin, Phone, User } from "lucide-react";
 import { useState } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -32,17 +32,33 @@ const PatientCard = ({ patient }: PatientCardProps) => {
     .join("");
 
   const formatPhoneNumber = (phone: string) => {
-    // Remove all non-numeric characters
     const cleaned = phone.replace(/\D/g, "");
-    // Format as (XX) XXXXX-XXXX
     if (cleaned.length === 11) {
       return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
     }
     return phone;
   };
 
+  const formatCPF = (cpf: string) => {
+    const cleaned = cpf.replace(/\D/g, "");
+    if (cleaned.length === 11) {
+      return `${cleaned.slice(0, 3)}.${cleaned.slice(3, 6)}.${cleaned.slice(6, 9)}-${cleaned.slice(9)}`;
+    }
+    return cpf;
+  };
+
   const getSexLabel = (sex: "male" | "female") => {
     return sex === "male" ? "Masculino" : "Feminino";
+  };
+
+  const getAddress = () => {
+    const parts = [];
+    if (patient.rua) parts.push(patient.rua);
+    if (patient.numero) parts.push(patient.numero);
+    if (patient.bairro) parts.push(patient.bairro);
+    if (patient.cidade && patient.uf)
+      parts.push(`${patient.cidade} - ${patient.uf}`);
+    return parts.join(", ");
   };
 
   return (
@@ -62,14 +78,35 @@ const PatientCard = ({ patient }: PatientCardProps) => {
       </CardHeader>
       <Separator />
       <CardContent className="flex flex-col gap-2">
+        {/* 🔥 EMAIL */}
         <Badge variant="outline">
           <Mail className="mr-1 h-3 w-3" />
-          {patient.email}
+          {patient.email || "Não informado"}
         </Badge>
+
+        {/* 🔥 TELEFONE */}
         <Badge variant="outline">
           <Phone className="mr-1 h-3 w-3" />
           {formatPhoneNumber(patient.phoneNumber)}
         </Badge>
+
+        {/* 🔥 CPF */}
+        {patient.cpf && (
+          <Badge variant="outline">
+            <FileText className="mr-1 h-3 w-3" />
+            {formatCPF(patient.cpf)}
+          </Badge>
+        )}
+
+        {/* 🔥 ENDEREÇO */}
+        {getAddress() && (
+          <Badge variant="outline" className="text-xs">
+            <MapPin className="mr-1 h-3 w-3 flex-shrink-0" />
+            <span className="truncate">{getAddress()}</span>
+          </Badge>
+        )}
+
+        {/* 🔥 SEXO */}
         <Badge variant="outline">
           <User className="mr-1 h-3 w-3" />
           {getSexLabel(patient.sex)}

@@ -15,9 +15,10 @@ interface AppointmentsTableProps {
     date: Date;
     appointmentPriceInCents: number;
     status: string;
-    // 🔥 REMOVIDO: statusPagamento: string;
     dueDate?: Date | null;
     serviceId?: string | null;
+    // 🔥 NOVO CAMPO: OBSERVAÇÕES
+    observations?: string | null;
     patient: {
       id: string;
       name: string;
@@ -200,9 +201,10 @@ export function AppointmentsTable({
       date: appointment.date,
       appointmentPriceInCents: appointment.appointmentPriceInCents,
       status: appointment.status,
-      // 🔥 REMOVIDO: statusPagamento: appointment.statusPagamento,
       dueDate: appointment.dueDate,
       serviceId: appointment.serviceId,
+      // 🔥 NOVO CAMPO: OBSERVAÇÕES
+      observations: appointment.observations,
       patient: {
         id: appointment.patient.id,
         name: appointment.patient.name,

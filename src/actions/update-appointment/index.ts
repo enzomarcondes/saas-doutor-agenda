@@ -22,7 +22,6 @@ export const updateAppointment = protectedWithClinicActionClient
           "finalizado",
         ])
         .optional(),
-      // 🔥 REMOVIDO: statusPagamento: z.enum(["pago", "a_receber"]).optional(),
       patientId: z.string().uuid().optional(),
       doctorId: z.string().uuid().optional(),
       serviceId: z.string().uuid().nullable().optional(),
@@ -30,6 +29,8 @@ export const updateAppointment = protectedWithClinicActionClient
       appointmentPriceInCents: z.number().int().positive().optional(),
       // 🔥 CAMPO: DATA DE VENCIMENTO
       dueDate: z.date().optional(),
+      // 🔥 ADICIONADO: OBSERVAÇÕES
+      observations: z.string().optional(),
     }),
   )
   .action(async ({ parsedInput, ctx }) => {
@@ -48,7 +49,6 @@ export const updateAppointment = protectedWithClinicActionClient
       throw new Error("Agendamento não encontrado");
     }
 
-    // 🔥 REMOVIDA TODA A LÓGICA DE STATUS PAGAMENTO
     const finalUpdateData = { ...updateData };
 
     // 🔥 REMOVER CAMPOS UNDEFINED PARA NÃO ATUALIZAR
