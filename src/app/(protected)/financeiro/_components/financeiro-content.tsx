@@ -11,32 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { patientsTable } from "@/db/schema"; // 🔥 IMPORT DO SCHEMA
 
 import { CreatePaymentDialog } from "./create-payment-dialog";
 import { PatientsFinancialList } from "./patients-financial-list";
 
 interface FinanceiroContentProps {
-  initialPatients: Array<{
-    id: string;
-    name: string;
-    email: string;
-    phoneNumber: string;
-    sex: "male" | "female";
-    createdAt: Date;
-    updatedAt: Date | null;
-    clinicId: string;
-  }>;
+  initialPatients: Array<typeof patientsTable.$inferSelect>; // 🔥 CORRIGIDO: USA TIPO DO SCHEMA
   dashboardData: {
-    patients: Array<{
-      id: string;
-      name: string;
-      email: string;
-      phoneNumber: string;
-      sex: "male" | "female";
-      createdAt: Date;
-      updatedAt: Date | null;
-      clinicId: string;
-    }>;
+    patients: Array<typeof patientsTable.$inferSelect>; // 🔥 CORRIGIDO: USA TIPO DO SCHEMA
     recentPayments: Array<{
       id: string;
       createdAt: Date;
@@ -52,16 +35,7 @@ interface FinanceiroContentProps {
         | "transferencia";
       paymentDate: Date;
       notes: string | null;
-      patient: {
-        id: string;
-        name: string;
-        email: string;
-        phoneNumber: string;
-        sex: "male" | "female";
-        createdAt: Date;
-        updatedAt: Date | null;
-        clinicId: string;
-      };
+      patient: typeof patientsTable.$inferSelect; // 🔥 CORRIGIDO: USA TIPO DO SCHEMA
     }>;
     totalRevenue: number;
     totalPayments: number;

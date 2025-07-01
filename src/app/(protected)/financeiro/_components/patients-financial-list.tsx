@@ -15,19 +15,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { patientsTable } from "@/db/schema"; // 🔥 IMPORT DO SCHEMA
 
 import { PatientFinancialModal } from "./patient-financial-modal";
 
-interface Patient {
-  id: string;
-  name: string;
-  email: string;
-  phoneNumber: string;
-  sex: "male" | "female";
-  createdAt: Date;
-  updatedAt: Date | null;
-  clinicId: string;
-}
+// 🔥 REMOVIDO INTERFACE Patient ANTIGA - AGORA USA SCHEMA
 
 interface PatientStatusData {
   patientId: string;
@@ -44,7 +36,7 @@ interface PatientStatusData {
 }
 
 interface PatientsFinancialListProps {
-  patients: Patient[];
+  patients: Array<typeof patientsTable.$inferSelect>; // 🔥 CORRIGIDO: USA TIPO DO SCHEMA
   showAlert?: boolean;
   patientsStatusData?: Record<string, PatientStatusData>;
   isLoadingStatus?: boolean;
@@ -86,7 +78,10 @@ export function PatientsFinancialList({
   };
 
   const sortedPatients = useMemo(() => {
-    const getSortPriority = (patient: Patient): number => {
+    const getSortPriority = (
+      patient: typeof patientsTable.$inferSelect,
+    ): number => {
+      // 🔥 CORRIGIDO: USA TIPO DO SCHEMA
       const statusData = patientsStatusData[patient.id];
 
       if (!statusData?.hasYellowDueDate || !statusData?.yellowDueDate) {
@@ -176,7 +171,7 @@ export function PatientsFinancialList({
   };
 
   const getAlertData = (
-    patient: Patient,
+    patient: typeof patientsTable.$inferSelect, // 🔥 CORRIGIDO: USA TIPO DO SCHEMA
   ): {
     show: boolean;
     statusData?: PatientStatusData;
@@ -190,7 +185,12 @@ export function PatientsFinancialList({
     return { show: true, statusData };
   };
 
-  const AlertCellContent = ({ patient }: { patient: Patient }) => {
+  const AlertCellContent = ({
+    patient,
+  }: {
+    patient: typeof patientsTable.$inferSelect;
+  }) => {
+    // 🔥 CORRIGIDO: USA TIPO DO SCHEMA
     const { show: showPatientAlert, statusData } = getAlertData(patient);
 
     if (showPatientAlert && statusData) {
@@ -290,7 +290,8 @@ export function PatientsFinancialList({
                       </TableCell>
 
                       <TableCell className="max-w-[200px] truncate text-sm font-medium">
-                        {patient.email}
+                        {patient.email || "Não informado"}{" "}
+                        {/* 🔥 CORRIGIDO: TRATAR NULL */}
                       </TableCell>
 
                       <TableCell>

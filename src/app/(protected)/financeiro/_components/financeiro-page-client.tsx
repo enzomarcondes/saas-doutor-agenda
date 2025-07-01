@@ -8,21 +8,13 @@ import {
   PageHeaderContent,
   PageTitle,
 } from "@/components/ui/page-container";
+import { patientsTable } from "@/db/schema"; // 🔥 IMPORT DO SCHEMA
 
 import { FinanceiroContent } from "./financeiro-content";
 
 interface FinanceiroPageClientProps {
   initialData: {
-    patients: Array<{
-      id: string;
-      name: string;
-      email: string;
-      phoneNumber: string;
-      sex: "male" | "female";
-      createdAt: Date;
-      updatedAt: Date | null;
-      clinicId: string;
-    }>;
+    patients: Array<typeof patientsTable.$inferSelect>; // 🔥 CORRIGIDO: USA TIPO DO SCHEMA
     recentPayments: Array<{
       id: string;
       createdAt: Date;
@@ -38,16 +30,7 @@ interface FinanceiroPageClientProps {
         | "transferencia";
       paymentDate: Date;
       notes: string | null;
-      patient: {
-        id: string;
-        name: string;
-        email: string;
-        phoneNumber: string;
-        sex: "male" | "female";
-        createdAt: Date;
-        updatedAt: Date | null;
-        clinicId: string;
-      };
+      patient: typeof patientsTable.$inferSelect; // 🔥 CORRIGIDO: USA TIPO DO SCHEMA
     }>;
     totalRevenue: number;
     totalPayments: number;
