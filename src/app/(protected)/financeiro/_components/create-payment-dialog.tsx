@@ -41,22 +41,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { patientsTable } from "@/db/schema"; // 🔥 IMPORT DO SCHEMA
 import { cn } from "@/lib/utils";
 
 interface CreatePaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: (paymentData: { patientId: string }) => void; // ✅ PARÂMETRO CORRETO
-  initialPatients: Array<{
-    id: string;
-    name: string;
-    email: string;
-    phoneNumber: string;
-    sex: "male" | "female";
-    createdAt: Date;
-    updatedAt: Date | null;
-    clinicId: string;
-  }>;
+  onSuccess: (paymentData: { patientId: string }) => void;
+  initialPatients: Array<typeof patientsTable.$inferSelect>; // 🔥 CORRIGIDO: USA TIPO DO SCHEMA
   preSelectedPatientId?: string | null;
 }
 
@@ -97,7 +89,7 @@ export function CreatePaymentDialog({
   const [installments, setInstallments] = useState<number>(2);
   const [paymentStatus, setPaymentStatus] = useState<"pago" | "pendente">(
     "pendente",
-  ); // ✅ NOVO ESTADO
+  );
 
   useEffect(() => {
     if (open && preSelectedPatientId) {
@@ -109,7 +101,7 @@ export function CreatePaymentDialog({
     if (!open) {
       setPatientId("");
     }
-  }, [open, preSelectedPatientId]); // ✅ NÃO INCLUIR patientId pois ele é setado aqui// ✅ DEPENDÊNCIAS CORRETAS - não inclua patientId pois ele é setado aqui
+  }, [open, preSelectedPatientId]);
 
   const { execute, isPending } = useAction(createPayment, {
     onSuccess: (result) => {
@@ -138,6 +130,7 @@ export function CreatePaymentDialog({
       toast.error(error.error.serverError || "Erro ao criar pagamento");
     },
   });
+
   const resetForm = () => {
     setPatientId("");
     setAmount("");
@@ -146,7 +139,7 @@ export function CreatePaymentDialog({
     setNotes("");
     setPaymentType("avista");
     setInstallments(2);
-    setPaymentStatus("pendente"); // ✅ RESETAR STATUS
+    setPaymentStatus("pendente");
   };
 
   // 🔥 LABELS DINÂMICOS BASEADOS NO TIPO
@@ -176,7 +169,6 @@ export function CreatePaymentDialog({
     const installmentValue = totalValue / installments;
 
     return Array.from({ length: installments }).map((_, index) => {
-      // ✅ USANDO O MESMO CÁLCULO DA ACTION
       const dueDate = new Date(
         paymentDate.getFullYear(),
         paymentDate.getMonth() + index,
@@ -218,7 +210,7 @@ export function CreatePaymentDialog({
       // Novos campos
       paymentType,
       installments: paymentType === "parcelado" ? installments : undefined,
-      paymentStatus, // ✅ ADICIONAR STATUS
+      paymentStatus,
     });
   };
 

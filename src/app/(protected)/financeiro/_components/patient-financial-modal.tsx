@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { patientsTable } from "@/db/schema"; // 🔥 IMPORT DO SCHEMA
 
 import { CreatePaymentDialog } from "./create-payment-dialog";
 import { PaymentsTable } from "./payments-table";
@@ -36,16 +37,7 @@ interface PatientFinancialModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   patientId: string | null;
-  patients: Array<{
-    id: string;
-    name: string;
-    email: string;
-    phoneNumber: string;
-    sex: "male" | "female";
-    createdAt: Date;
-    updatedAt: Date | null;
-    clinicId: string;
-  }>;
+  patients: Array<typeof patientsTable.$inferSelect>; // 🔥 CORRIGIDO: USA TIPO DO SCHEMA
   onDataUpdate?: () => void;
 }
 
@@ -70,16 +62,7 @@ interface PaymentData {
   installmentNumber?: number | null;
   totalInstallments?: number | null;
   installmentGroupId?: string | null;
-  patient: {
-    id: string;
-    name: string;
-    email: string;
-    phoneNumber: string;
-    sex: "male" | "female";
-    createdAt: Date;
-    updatedAt: Date | null;
-    clinicId: string;
-  };
+  patient: typeof patientsTable.$inferSelect; // 🔥 CORRIGIDO: USA TIPO DO SCHEMA
 }
 
 interface AppointmentData {
@@ -103,6 +86,17 @@ interface AppointmentData {
   } | null;
 }
 
+// 🔥 TIPO USANDO SCHEMA DO BANCO
+type LocalData = {
+  patient: typeof patientsTable.$inferSelect; // ✅ USA TIPO DO SCHEMA
+  appointments: AppointmentData[];
+  payments: PaymentData[];
+  totalAppointments: number;
+  totalPayments: number;
+  balance: number;
+  isFullyPaid: boolean;
+};
+
 const statusLabels = {
   agendado: "Agendado",
   confirmado: "Confirmado",
@@ -123,24 +117,7 @@ export function PatientFinancialModal({
   );
 
   const [isCreatePaymentOpen, setIsCreatePaymentOpen] = useState(false);
-  const [localData, setLocalData] = useState<{
-    patient: {
-      id: string;
-      name: string;
-      email: string;
-      phoneNumber: string;
-      sex: "male" | "female";
-      createdAt: Date;
-      updatedAt: Date | null;
-      clinicId: string;
-    };
-    appointments: AppointmentData[];
-    payments: PaymentData[];
-    totalAppointments: number;
-    totalPayments: number;
-    balance: number;
-    isFullyPaid: boolean;
-  } | null>(null);
+  const [localData, setLocalData] = useState<LocalData | null>(null); // 🔥 USANDO TIPO CORRIGIDO
   const [isRefreshing, setIsRefreshing] = useState(false);
   const currentPatientRef = useRef<string | null>(null);
 
@@ -215,7 +192,7 @@ export function PatientFinancialModal({
         result.data.patient?.id === currentPatientRef.current &&
         patientId === currentPatientRef.current
       ) {
-        setLocalData(result.data);
+        setLocalData(result.data); // ✅ AGORA FUNCIONA COM TIPO CORRETO
         setIsRefreshing(false);
       } else {
         if (patientId && patientId === currentPatientRef.current) {
@@ -360,7 +337,8 @@ export function PatientFinancialModal({
                             Email
                           </p>
                           <p className="text-base font-semibold">
-                            {patient.email}
+                            {patient.email || "Não informado"}{" "}
+                            {/* 🔥 CORRIGIDO: TRATAR NULL */}
                           </p>
                         </div>
                         <div className="space-y-1">
