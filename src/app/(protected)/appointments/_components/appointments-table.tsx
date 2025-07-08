@@ -7,7 +7,7 @@ import {
   useAppointmentEdit,
 } from "./appointment-edit-context";
 import { EditAppointmentDialog } from "./edit-appointment-dialog";
-import { Appointment, columns } from "./table-columns";
+import { Appointment, columns } from "./table-columns"; // 🔥 VOLTAR AO NORMAL
 
 interface AppointmentsTableProps {
   appointments: Array<{
@@ -17,8 +17,8 @@ interface AppointmentsTableProps {
     status: string;
     dueDate?: Date | null;
     serviceId?: string | null;
-    // 🔥 NOVO CAMPO: OBSERVAÇÕES
     observations?: string | null;
+    quantity: number;
     patient: {
       id: string;
       name: string;
@@ -36,13 +36,16 @@ interface AppointmentsTableProps {
     service?: {
       id: string;
       name: string;
+      displayName?: string; // 🔥 ADICIONAR displayName
       priceInCents: number;
+      parentServiceId?: string | null;
     } | null;
   }>;
   services?: Array<{
     id: string;
     name: string;
     priceInCents: number;
+    parentServiceId?: string | null;
   }>;
   doctors?: Array<{
     id: string;
@@ -66,6 +69,7 @@ function AppointmentsTableContent({
     id: string;
     name: string;
     priceInCents: number;
+    parentServiceId?: string | null;
   }>;
   doctors?: Array<{
     id: string;
@@ -85,9 +89,8 @@ function AppointmentsTableContent({
 
   return (
     <div className="space-y-4">
-      {/* 🔥 SÓ A TABELA - SEM BUSCA */}
       <DataTable
-        columns={columns}
+        columns={columns} // 🔥 USAR COLUNAS NORMAIS
         data={appointments}
         onRowClick={handleRowClick}
       />
@@ -112,7 +115,6 @@ export function AppointmentsTable({
   services = [],
   doctors = [],
 }: AppointmentsTableProps) {
-  // 🔥 LÓGICA DE ORDENAÇÃO MANTIDA
   const sortAppointments = (
     appointments: AppointmentForSorting[],
   ): AppointmentForSorting[] => {
@@ -130,7 +132,7 @@ export function AppointmentsTable({
 
       const isToday = (date: Date) => date.getTime() === today.getTime();
 
-      // 🔥 PRIORIDADE 1: Não finalizados (qualquer dia) sempre no topo
+      // Prioridade 1: Não finalizados sempre no topo
       if (a.status !== "finalizado" && b.status === "finalizado") {
         if (!isToday(dayB)) {
           return -1;
@@ -143,12 +145,12 @@ export function AppointmentsTable({
         }
       }
 
-      // 🔥 PRIORIDADE 2: Entre não finalizados, ordenar por data (mais antigo primeiro)
+      // Prioridade 2: Entre não finalizados, ordenar por data
       if (a.status !== "finalizado" && b.status !== "finalizado") {
         return dateA.getTime() - dateB.getTime();
       }
 
-      // 🔥 PRIORIDADE 3: Finalizados de hoje ficam no meio (ordenados por data)
+      // Prioridade 3: Finalizados de hoje ficam no meio
       if (a.status === "finalizado" && b.status === "finalizado") {
         const aIsToday = isToday(dayA);
         const bIsToday = isToday(dayB);
@@ -168,7 +170,7 @@ export function AppointmentsTable({
         return dateA.getTime() - dateB.getTime();
       }
 
-      // 🔥 PRIORIDADE 4: Entre finalizado e não finalizado
+      // Prioridade 4: Entre finalizado e não finalizado
       if (a.status === "finalizado" && b.status !== "finalizado") {
         const aIsToday = isToday(dayA);
 
@@ -195,6 +197,7 @@ export function AppointmentsTable({
 
   const sortedAppointments = sortAppointments([...appointments]);
 
+  // 🔥 MAPEAMENTO PARA APPOINTMENT TYPE (COM displayName)
   const formattedAppointments: Appointment[] = sortedAppointments.map(
     (appointment): Appointment => ({
       id: appointment.id,
@@ -203,8 +206,8 @@ export function AppointmentsTable({
       status: appointment.status,
       dueDate: appointment.dueDate,
       serviceId: appointment.serviceId,
-      // 🔥 NOVO CAMPO: OBSERVAÇÕES
       observations: appointment.observations,
+      quantity: appointment.quantity || 1,
       patient: {
         id: appointment.patient.id,
         name: appointment.patient.name,
@@ -223,7 +226,9 @@ export function AppointmentsTable({
         ? {
             id: appointment.service.id,
             name: appointment.service.name,
+            displayName: appointment.service.displayName, // 🔥 PRESERVAR displayName
             priceInCents: appointment.service.priceInCents,
+            parentServiceId: appointment.service.parentServiceId,
           }
         : null,
     }),

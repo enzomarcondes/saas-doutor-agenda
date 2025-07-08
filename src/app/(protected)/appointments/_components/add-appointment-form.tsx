@@ -1,10 +1,10 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query"; // 🔥 REMOVER useQueryClient
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import dayjs from "dayjs";
-import { CalendarIcon, Check, Plus, Search, X } from "lucide-react";
+import { CalendarIcon, Check, Minus, Plus, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NumericFormat } from "react-number-format";
 
@@ -37,8 +37,26 @@ import { Textarea } from "@/components/ui/textarea";
 import { doctorsTable, patientsTable } from "@/db/schema";
 import { cn } from "@/lib/utils";
 
-// 🔥 IMPORTAR COMPONENTE DE CADASTRO DE PACIENTE
 import UpsertPatientForm from "../../patients/_components/upsert-patient-form";
+
+// 🔥 INTERFACE CORRETA PARA SERVICES
+interface ServiceWithHierarchy {
+  id: string;
+  name: string;
+  priceInCents: number;
+  clinicId: string;
+  parentServiceId?: string | null;
+  subServices?: Array<{
+    id: string;
+    name: string;
+    priceInCents: number;
+  }>;
+  parentService?: {
+    id: string;
+    name: string;
+    priceInCents: number;
+  } | null;
+}
 
 interface AddAppointmentFormProps {
   patients: Array<{
@@ -49,12 +67,7 @@ interface AddAppointmentFormProps {
     clinicId: string;
   }>;
   doctors: (typeof doctorsTable.$inferSelect)[];
-  services: Array<{
-    id: string;
-    name: string;
-    priceInCents: number;
-    clinicId: string;
-  }>;
+  services: ServiceWithHierarchy[];
   onSuccess: () => void;
 }
 
@@ -69,6 +82,8 @@ export function AddAppointmentForm({
   const [selectedPatient, setSelectedPatient] = useState("");
   const [selectedDoctor, setSelectedDoctor] = useState("");
   const [selectedService, setSelectedService] = useState("");
+  // 🔥 NOVO ESTADO: QUANTIDADE
+  const [quantity, setQuantity] = useState(1);
   const [appointmentPrice, setAppointmentPrice] = useState("");
   const [status, setStatus] = useState<
     "agendado" | "confirmado" | "cancelado" | "nao_compareceu" | "finalizado"
@@ -77,24 +92,60 @@ export function AddAppointmentForm({
   const [observations, setObservations] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // 🔥 NOVOS ESTADOS PARA CONTROLAR POPOVERS
+  // Estados para controlar popovers
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isDueDatePickerOpen, setIsDueDatePickerOpen] = useState(false);
 
-  // 🔥 NOVOS ESTADOS PARA BUSCA E CADASTRO DE PACIENTE
+  // Estados para busca e cadastro de paciente
   const [isPatientDropdownOpen, setIsPatientDropdownOpen] = useState(false);
   const [patientSearchValue, setPatientSearchValue] = useState("");
   const [isAddPatientDialogOpen, setIsAddPatientDialogOpen] = useState(false);
 
-  // 🔥 LISTA DE PACIENTES (inicia com os dados passados)
   const [patients, setPatients] = useState(initialPatients);
 
-  // 🔥 FILTRAR PACIENTES BASEADO NA BUSCA
+  // 🔥 ORGANIZAR SERVIÇOS HIERARQUICAMENTE - CORREÇÃO
+  const organizedServices: Array<{
+    id: string;
+    name: string;
+    priceInCents: number;
+    isMainService: boolean;
+    level: number;
+    parentServiceId?: string | null;
+  }> = [];
+
+  // Primeiro, adicionar serviços principais
+  services
+    .filter((service) => !service.parentServiceId)
+    .forEach((service) => {
+      organizedServices.push({
+        id: service.id,
+        name: service.name,
+        priceInCents: service.priceInCents,
+        isMainService: true,
+        level: 0,
+        parentServiceId: service.parentServiceId,
+      });
+
+      // Depois adicionar sub-serviços
+      services
+        .filter((s) => s.parentServiceId === service.id)
+        .forEach((subService) => {
+          organizedServices.push({
+            id: subService.id,
+            name: subService.name,
+            priceInCents: subService.priceInCents,
+            isMainService: false,
+            level: 1,
+            parentServiceId: subService.parentServiceId,
+          });
+        });
+    });
+
   const filteredPatients = patients.filter((patient) =>
     patient.name.toLowerCase().includes(patientSearchValue.toLowerCase()),
   );
 
-  // 🔥 BUSCAR HORÁRIOS DISPONÍVEIS AUTOMATICAMENTE
+  // Buscar horários disponíveis automaticamente
   const { data: availableTimes } = useQuery({
     queryKey: ["available-times", date, selectedDoctor],
     queryFn: () =>
@@ -105,7 +156,7 @@ export function AddAppointmentForm({
     enabled: !!date && !!selectedDoctor,
   });
 
-  // 🔥 AUTO-FILL PREÇO QUANDO SELECIONAR DOUTOR
+  // Auto-fill preço quando selecionar doutor
   useEffect(() => {
     if (selectedDoctor) {
       const doctor = doctors.find((d) => d.id === selectedDoctor);
@@ -116,20 +167,46 @@ export function AddAppointmentForm({
     }
   }, [selectedDoctor, doctors]);
 
-  // 🔥 AUTO-COMPLETAR PREÇO QUANDO SELECIONAR SERVIÇO
+  // 🔥 AUTO-COMPLETAR PREÇO QUANDO SELECIONAR SERVIÇO - CORREÇÃO
   const handleServiceChange = (serviceId: string) => {
     setSelectedService(serviceId);
 
     if (serviceId) {
       const service = services.find((s) => s.id === serviceId);
-      if (service?.priceInCents) {
-        const priceInReais = service.priceInCents / 100;
+      if (service) {
+        // 🔥 SE FOR SUB-SERVIÇO, USAR PREÇO DO PAI
+        let priceToUse = service.priceInCents;
+
+        if (service.parentServiceId) {
+          const parentService = services.find(
+            (s) => s.id === service.parentServiceId,
+          );
+          if (parentService) {
+            priceToUse = parentService.priceInCents;
+          }
+        }
+
+        const priceInReais = priceToUse / 100;
         setAppointmentPrice(priceInReais.toString());
       }
     }
   };
 
-  // 🔥 VERIFICAR SE DATA ESTÁ DISPONÍVEL PARA O DOUTOR
+  // 🔥 FUNÇÕES PARA CONTROLAR QUANTIDADE
+  const handleQuantityIncrease = () => {
+    setQuantity((prev) => prev + 1);
+  };
+
+  const handleQuantityDecrease = () => {
+    setQuantity((prev) => Math.max(1, prev - 1));
+  };
+
+  const handleQuantityChange = (value: string) => {
+    const numValue = parseInt(value) || 1;
+    setQuantity(Math.max(1, numValue));
+  };
+
+  // Verificar se data está disponível para o doutor
   const isDateAvailable = (date: Date) => {
     if (!selectedDoctor) return false;
     const doctor = doctors.find((d) => d.id === selectedDoctor);
@@ -150,12 +227,12 @@ export function AddAppointmentForm({
     }
   };
 
-  // 🔥 RESETAR HORÁRIO QUANDO MUDAR DATA OU DOUTOR
+  // Resetar horário quando mudar data ou doutor
   useEffect(() => {
     setTime("");
   }, [date, selectedDoctor]);
 
-  // 🔥 CALCULAR VENCIMENTO PADRÃO QUANDO MUDAR DATA
+  // Calcular vencimento padrão quando mudar data
   useEffect(() => {
     if (date) {
       const defaultDue = dayjs(date).add(30, "days").toDate();
@@ -163,7 +240,6 @@ export function AddAppointmentForm({
     }
   }, [date]);
 
-  // 🔥 FUNÇÕES PARA FECHAR POPOVERS AO SELECIONAR DATA
   const handleDateSelect = (selectedDate: Date | undefined) => {
     setDate(selectedDate);
     setIsDatePickerOpen(false);
@@ -174,33 +250,25 @@ export function AddAppointmentForm({
     setIsDueDatePickerOpen(false);
   };
 
-  // 🔥 FUNÇÃO PARA SELECIONAR PACIENTE
   const handlePatientSelect = (patientId: string) => {
     setSelectedPatient(patientId);
     setPatientSearchValue(patients.find((p) => p.id === patientId)?.name || "");
     setIsPatientDropdownOpen(false);
   };
 
-  // 🔥 LIMPAR SELEÇÃO DE PACIENTE
   const handleClearPatient = () => {
     setSelectedPatient("");
     setPatientSearchValue("");
   };
 
-  // 🔥 CALLBACK QUANDO PACIENTE É CRIADO
   const handlePatientCreated = (
     newPatient?: typeof patientsTable.$inferSelect,
   ) => {
     if (newPatient) {
-      // 1. Adicionar à lista local
       setPatients((prev) => [...prev, newPatient]);
-
-      // 2. Selecionar automaticamente
       setSelectedPatient(newPatient.id);
       setPatientSearchValue(newPatient.name);
     }
-
-    // 3. Fechar modal
     setIsAddPatientDialogOpen(false);
   };
 
@@ -234,6 +302,8 @@ export function AddAppointmentForm({
         status,
         dueDate,
         observations: observations.trim() || undefined,
+        // 🔥 NOVO CAMPO
+        quantity,
       };
 
       await addAppointment(appointmentData);
@@ -244,6 +314,7 @@ export function AddAppointmentForm({
       setSelectedPatient("");
       setSelectedDoctor("");
       setSelectedService("");
+      setQuantity(1);
       setAppointmentPrice("");
       setStatus("agendado");
       setDueDate(undefined);
@@ -270,7 +341,7 @@ export function AddAppointmentForm({
       </DialogHeader>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* 🔥 1. PACIENTE - BUSCA SIMPLIFICADA */}
+        {/* 1. PACIENTE - BUSCA SIMPLIFICADA */}
         <div className="space-y-2">
           <Label htmlFor="patient">Paciente *</Label>
           <div className="flex gap-2">
@@ -286,14 +357,13 @@ export function AddAppointmentForm({
                       value={patientSearchValue}
                       onChange={(e) => {
                         setPatientSearchValue(e.target.value);
-                        setIsPatientDropdownOpen(true); // ✅ SEMPRE ABRE AO DIGITAR
-                        // ✅ LIMPA SELEÇÃO APENAS SE CAMPO FICAR VAZIO
+                        setIsPatientDropdownOpen(true);
                         if (!e.target.value) {
                           setSelectedPatient("");
                         }
                       }}
-                      onFocus={() => setIsPatientDropdownOpen(true)} // ✅ ABRE AO CLICAR
-                      onClick={() => setIsPatientDropdownOpen(true)} // ✅ ABRE AO CLICAR
+                      onFocus={() => setIsPatientDropdownOpen(true)}
+                      onClick={() => setIsPatientDropdownOpen(true)}
                     />
                     {selectedPatient && (
                       <Button
@@ -310,7 +380,6 @@ export function AddAppointmentForm({
                 </PopoverTrigger>
                 <PopoverContent className="w-[300px] p-0">
                   <div className="max-h-60 overflow-y-auto">
-                    {/* ✅ MOSTRAR TODOS OS PACIENTES SE NÃO DIGITOU NADA */}
                     {patientSearchValue === "" ? (
                       <div className="p-1">
                         {patients.map((patient) => (
@@ -339,7 +408,6 @@ export function AddAppointmentForm({
                         ))}
                       </div>
                     ) : filteredPatients.length > 0 ? (
-                      /* ✅ MOSTRAR PACIENTES FILTRADOS QUANDO DIGITAR */
                       <div className="p-1">
                         {filteredPatients.map((patient) => (
                           <div
@@ -367,7 +435,6 @@ export function AddAppointmentForm({
                         ))}
                       </div>
                     ) : (
-                      /* ✅ NENHUM RESULTADO + BOTÃO CADASTRAR */
                       <div className="flex flex-col items-center gap-2 p-4">
                         <Search className="text-muted-foreground h-8 w-8" />
                         <p className="text-muted-foreground text-sm">
@@ -391,7 +458,6 @@ export function AddAppointmentForm({
               </Popover>
             </div>
 
-            {/* 🔥 BOTÃO CADASTRAR PACIENTE */}
             <Dialog
               open={isAddPatientDialogOpen}
               onOpenChange={setIsAddPatientDialogOpen}
@@ -493,7 +559,7 @@ export function AddAppointmentForm({
           </Select>
         </div>
 
-        {/* 5. SERVIÇO */}
+        {/* 5. SERVIÇO COM HIERARQUIA */}
         <div className="space-y-2">
           <Label htmlFor="service">Serviço</Label>
           <Select value={selectedService} onValueChange={handleServiceChange}>
@@ -501,18 +567,65 @@ export function AddAppointmentForm({
               <SelectValue placeholder="Selecione um serviço (opcional)" />
             </SelectTrigger>
             <SelectContent>
-              {services.map((service) => (
+              {organizedServices.map((service) => (
                 <SelectItem key={service.id} value={service.id}>
-                  {service.name} - R$ {(service.priceInCents / 100).toFixed(2)}
+                  <div className="flex items-center gap-2">
+                    {service.level > 0 && (
+                      <span className="text-muted-foreground">└</span>
+                    )}
+                    <span
+                      className={service.level > 0 ? "text-sm" : "font-medium"}
+                    >
+                      {service.name}
+                    </span>
+                    {service.isMainService && (
+                      <span className="text-muted-foreground text-sm">
+                        - R$ {(service.priceInCents / 100).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        {/* 6. VALOR */}
+        {/* 🔥 6. QUANTIDADE */}
         <div className="space-y-2">
-          <Label htmlFor="price">Valor (R$) *</Label>
+          <Label htmlFor="quantity">Quantidade</Label>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-9 w-9"
+              onClick={handleQuantityDecrease}
+              disabled={quantity <= 1}
+            >
+              <Minus className="h-4 w-4" />
+            </Button>
+            <Input
+              type="number"
+              value={quantity}
+              onChange={(e) => handleQuantityChange(e.target.value)}
+              className="text-center"
+              min="1"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-9 w-9"
+              onClick={handleQuantityIncrease}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* 7. VALOR UNITÁRIO */}
+        <div className="space-y-2">
+          <Label htmlFor="price">Valor Unitário (R$) *</Label>
           <NumericFormat
             customInput={Input}
             thousandSeparator="."
@@ -527,9 +640,17 @@ export function AddAppointmentForm({
             }}
             placeholder="R$ 0,00"
           />
+          {quantity > 1 && appointmentPrice && (
+            <div className="text-muted-foreground text-sm">
+              Total: R${" "}
+              {((parseFloat(appointmentPrice) || 0) * quantity)
+                .toFixed(2)
+                .replace(".", ",")}
+            </div>
+          )}
         </div>
 
-        {/* 7. STATUS DA CONSULTA */}
+        {/* 8. STATUS DA CONSULTA */}
         <div className="space-y-2">
           <Label htmlFor="status">Status da Consulta</Label>
           <Select
@@ -549,7 +670,7 @@ export function AddAppointmentForm({
           </Select>
         </div>
 
-        {/* 8. OBSERVAÇÕES */}
+        {/* 9. OBSERVAÇÕES */}
         <div className="space-y-2">
           <Label htmlFor="observations">Observações</Label>
           <Textarea
@@ -562,7 +683,7 @@ export function AddAppointmentForm({
           />
         </div>
 
-        {/* 9. DATA DE VENCIMENTO */}
+        {/* 10. DATA DE VENCIMENTO */}
         <div className="space-y-2">
           <Label htmlFor="dueDate">Data de Vencimento</Label>
           <Popover

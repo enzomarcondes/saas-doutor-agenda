@@ -1,22 +1,16 @@
 import { useMemo, useState } from "react";
 
-// 🔥 INTERFACE FILTERS ATUALIZADA (SEM statusPagamento)
-export interface Filters {
-  search: string;
-  doctorId: string;
-  status: string;
-  // 🔥 REMOVIDO: statusPagamento: string;
-}
-
-// 🔥 TIPO PARA APPOINTMENT (SEM statusPagamento)
-interface AppointmentData {
+// 🔥 EXPORTAR O TIPO APPOINTMENT DATA
+export interface AppointmentData {
   id: string;
   date: Date;
   appointmentPriceInCents: number;
   status: string;
-  // 🔥 REMOVIDO: statusPagamento: string;
   dueDate?: Date | null;
   serviceId?: string | null;
+  observations?: string | null;
+  // 🔥 QUANTITY OPCIONAL PARA COMPATIBILIDADE COM DADOS ANTIGOS
+  quantity?: number;
   patient: {
     id: string;
     name: string;
@@ -35,52 +29,70 @@ interface AppointmentData {
     id: string;
     name: string;
     priceInCents: number;
+    parentServiceId?: string | null;
   } | null;
 }
 
+// 🔥 EXPORTAR INTERFACE DE FILTROS
+export interface AppointmentFilters {
+  search: string;
+  doctorId: string;
+  status: string;
+  dateFrom?: Date;
+  dateTo?: Date;
+}
+
 export function useAppointmentsFilters(appointments: AppointmentData[]) {
-  const [filters, setFilters] = useState<Filters>({
+  const [filters, setFilters] = useState<AppointmentFilters>({
     search: "",
     doctorId: "",
     status: "",
-    // 🔥 REMOVIDO: statusPagamento: "",
+    dateFrom: undefined,
+    dateTo: undefined,
   });
 
   const filteredAppointments = useMemo(() => {
     return appointments.filter((appointment) => {
-      // 🔥 FILTRO DE BUSCA
+      // 🔥 FILTRO POR BUSCA (PACIENTE)
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
-        const matchesPatient = appointment.patient.name
-          .toLowerCase()
-          .includes(searchLower);
-        const matchesDoctor = appointment.doctor.name
-          .toLowerCase()
-          .includes(searchLower);
-        const matchesService = appointment.service?.name
-          ?.toLowerCase()
-          .includes(searchLower);
-
-        if (!matchesPatient && !matchesDoctor && !matchesService) {
+        const patientName = appointment.patient.name.toLowerCase();
+        if (!patientName.includes(searchLower)) {
           return false;
         }
       }
 
-      // 🔥 FILTRO DE DOUTOR
-      if (filters.doctorId && filters.doctorId !== "all") {
-        if (appointment.doctor.id !== filters.doctorId) {
+      // 🔥 FILTRO POR DOUTOR
+      if (filters.doctorId && appointment.doctor.id !== filters.doctorId) {
+        return false;
+      }
+
+      // 🔥 FILTRO POR STATUS
+      if (filters.status && appointment.status !== filters.status) {
+        return false;
+      }
+
+      // 🔥 FILTRO POR DATA (DE)
+      if (filters.dateFrom) {
+        const appointmentDate = new Date(appointment.date);
+        appointmentDate.setHours(0, 0, 0, 0);
+        const fromDate = new Date(filters.dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        if (appointmentDate < fromDate) {
           return false;
         }
       }
 
-      // 🔥 FILTRO DE STATUS
-      if (filters.status && filters.status !== "all") {
-        if (appointment.status !== filters.status) {
+      // 🔥 FILTRO POR DATA (ATÉ)
+      if (filters.dateTo) {
+        const appointmentDate = new Date(appointment.date);
+        appointmentDate.setHours(0, 0, 0, 0);
+        const toDate = new Date(filters.dateTo);
+        toDate.setHours(0, 0, 0, 0);
+        if (appointmentDate > toDate) {
           return false;
         }
       }
-
-      // 🔥 REMOVIDO FILTRO DE STATUS PAGAMENTO
 
       return true;
     });

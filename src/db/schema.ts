@@ -190,17 +190,30 @@ export const doctorsTable = pgTable("doctors", {
     .$onUpdate(() => new Date()),
 });
 
+// 🔥 SCHEMAS ATUALIZADOS (SUBSTITUIR OS EXISTENTES)
 export const upsertServiceSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1, {
     message: "Nome do serviço é obrigatório.",
   }),
-  priceInCents: z.number().min(1, {
-    message: "Preço do serviço é obrigatório.",
+  priceInCents: z.number().min(0, {
+    message: "Preço do serviço deve ser maior ou igual a zero.",
   }),
+  // 🔥 NOVO CAMPO
+  parentServiceId: z.string().uuid().optional().nullable(),
 });
 
 export type UpsertServiceSchema = z.infer<typeof upsertServiceSchema>;
+// 🔥 NOVO SCHEMA PARA SUB-SERVIÇOS
+export const upsertSubServiceSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().trim().min(1, {
+    message: "Nome do sub-serviço é obrigatório.",
+  }),
+  parentServiceId: z.string().uuid({
+    message: "Serviço principal é obrigatório.",
+  }),
+});
 
 export const doctorsTableRelations = relations(
   doctorsTable,
@@ -286,8 +299,11 @@ export const appointmentsTable = pgTable("appointments", {
   // 🔥 CAMPO DE DATA DE VENCIMENTO
   dueDate: timestamp("due_date"),
 
-  // 🔥 NOVO CAMPO: OBSERVAÇÕES
+  // 🔥 CAMPO: OBSERVAÇÕES
   observations: text("observations"),
+
+  // 🔥 NOVO CAMPO: QUANTIDADE
+  quantity: integer("quantity").notNull().default(1),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
@@ -324,12 +340,17 @@ export const servicesTable = pgTable("services", {
     .references(() => clinicsTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   priceInCents: integer("price_in_cents").notNull(),
+
+  // 🔥 CAMPO HIERARQUIA - APENAS UUID
+  parentServiceId: uuid("parent_service_id"),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
     .$onUpdate(() => new Date()),
 });
 
+// 🔥 MANTER AS RELAÇÕES COMO ESTAVAM + ADICIONAR AS NOVAS
 export const servicesTableRelations = relations(
   servicesTable,
   ({ one, many }) => ({
@@ -338,5 +359,15 @@ export const servicesTableRelations = relations(
       references: [clinicsTable.id],
     }),
     appointments: many(appointmentsTable),
+
+    // 🔥 NOVAS RELAÇÕES HIERÁRQUICAS
+    parentService: one(servicesTable, {
+      fields: [servicesTable.parentServiceId],
+      references: [servicesTable.id],
+      relationName: "service_hierarchy",
+    }),
+    subServices: many(servicesTable, {
+      relationName: "service_hierarchy",
+    }),
   }),
 );

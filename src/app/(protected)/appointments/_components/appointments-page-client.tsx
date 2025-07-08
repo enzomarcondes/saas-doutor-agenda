@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { doctorsTable, patientsTable, servicesTable } from "@/db/schema";
+import { doctorsTable, patientsTable } from "@/db/schema";
 import { useAppointmentsFilters } from "@/hooks/use-appointments-filters";
 
 import AddAppointmentButton from "./add-appointment-button";
@@ -10,19 +10,47 @@ import { AppointmentsTable } from "./appointments-table";
 
 // 🔥 USAR TIPOS DO SCHEMA DO BANCO
 type DoctorData = typeof doctorsTable.$inferSelect;
-type ServiceData = typeof servicesTable.$inferSelect;
 type PatientData = typeof patientsTable.$inferSelect;
 
-// 🔥 TIPO PARA APPOINTMENT COM JOINS (REMOVIDO statusPagamento)
-interface AppointmentData {
+// 🔥 TIPO PARA SERVICE COM HIERARQUIA - CORRIGIDO updatedAt
+interface ServiceData {
+  id: string;
+  name: string;
+  priceInCents: number;
+  clinicId: string;
+  parentServiceId?: string | null;
+  createdAt: Date;
+  updatedAt: Date | null;
+  subServices?: Array<{
+    id: string;
+    name: string;
+    priceInCents: number;
+    clinicId: string;
+    parentServiceId: string | null;
+    createdAt: Date;
+    updatedAt: Date | null;
+  }>;
+  parentService?: {
+    id: string;
+    name: string;
+    priceInCents: number;
+    clinicId: string;
+    parentServiceId: string | null;
+    createdAt: Date;
+    updatedAt: Date | null;
+  } | null;
+}
+
+// 🔥 TIPO PARA APPOINTMENTS QUE VÊM DA PÁGINA (COM displayName)
+interface AppointmentDataWithDisplayName {
   id: string;
   date: Date;
   appointmentPriceInCents: number;
   status: string;
   dueDate?: Date | null;
   serviceId?: string | null;
-  // 🔥 NOVO CAMPO: OBSERVAÇÕES
   observations?: string | null;
+  quantity?: number;
   patient: {
     id: string;
     name: string;
@@ -40,13 +68,48 @@ interface AppointmentData {
   service?: {
     id: string;
     name: string;
+    displayName?: string; // 🔥 CAMPO QUE VEM DA PÁGINA
     priceInCents: number;
+    parentServiceId?: string | null;
+  } | null;
+}
+
+// 🔥 TIPO PARA APPOINTMENTS TABLE
+interface AppointmentDataForTable {
+  id: string;
+  date: Date;
+  appointmentPriceInCents: number;
+  status: string;
+  dueDate?: Date | null;
+  serviceId?: string | null;
+  observations?: string | null;
+  quantity: number;
+  patient: {
+    id: string;
+    name: string;
+    email?: string | null;
+    phoneNumber?: string | null;
+  };
+  doctor: {
+    id: string;
+    name: string;
+    availableFromWeekDay: number;
+    availableToWeekDay: number;
+    availableFromTime: string;
+    availableToTime: string;
+  };
+  service?: {
+    id: string;
+    name: string;
+    displayName?: string;
+    priceInCents: number;
+    parentServiceId?: string | null;
   } | null;
 }
 
 interface AppointmentsPageClientProps {
   initialData: {
-    appointments: AppointmentData[];
+    appointments: AppointmentDataWithDisplayName[]; // 🔥 USAR TIPO COM displayName
     doctors: DoctorData[];
     services: ServiceData[];
     patients: PatientData[];
@@ -58,11 +121,33 @@ export function AppointmentsPageClient({
 }: AppointmentsPageClientProps) {
   const { appointments, doctors, services, patients } = initialData;
 
+  // 🔥 CONVERTER PARA TIPO DO HOOK (SEM displayName)
+  const appointmentsForHook = appointments.map((appointment) => ({
+    id: appointment.id,
+    date: appointment.date,
+    appointmentPriceInCents: appointment.appointmentPriceInCents,
+    status: appointment.status,
+    dueDate: appointment.dueDate,
+    serviceId: appointment.serviceId,
+    observations: appointment.observations,
+    quantity: appointment.quantity,
+    patient: appointment.patient,
+    doctor: appointment.doctor,
+    service: appointment.service
+      ? {
+          id: appointment.service.id,
+          name: appointment.service.name,
+          priceInCents: appointment.service.priceInCents,
+          parentServiceId: appointment.service.parentServiceId,
+        }
+      : null,
+  }));
+
   // 🔥 USAR HOOK DE FILTROS
   const { filters, setFilters, filteredAppointments } =
-    useAppointmentsFilters(appointments);
+    useAppointmentsFilters(appointmentsForHook);
 
-  // 🔥 CALCULAR ESTATÍSTICAS (sempre baseado em TODOS os appointments)
+  // 🔥 CALCULAR ESTATÍSTICAS
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -83,6 +168,64 @@ export function AppointmentsPageClient({
     return aptDate >= startOfWeek && aptDate <= endOfWeek;
   }).length;
 
+  // 🔥 TRANSFORMAR SERVICES PARA ADD BUTTON
+  const servicesForAddButton = services.map((service) => ({
+    id: service.id,
+    name: service.name,
+    priceInCents: service.priceInCents,
+    clinicId: service.clinicId,
+    parentServiceId: service.parentServiceId,
+    subServices: service.subServices?.map((sub) => ({
+      id: sub.id,
+      name: sub.name,
+      priceInCents: sub.priceInCents,
+    })),
+    parentService: service.parentService
+      ? {
+          id: service.parentService.id,
+          name: service.parentService.name,
+          priceInCents: service.parentService.priceInCents,
+        }
+      : null,
+  }));
+
+  // 🔥 TRANSFORMAR SERVICES PARA TABELA
+  const servicesForTable = services.map((service) => ({
+    id: service.id,
+    name: service.name,
+    priceInCents: service.priceInCents,
+    parentServiceId: service.parentServiceId,
+  }));
+
+  // 🔥 MAPEAR APPOINTMENTS FILTRADOS PARA TABELA (PRESERVAR displayName)
+  const appointmentsForTable: AppointmentDataForTable[] =
+    filteredAppointments.map((filteredApp) => {
+      // 🔥 ENCONTRAR O APPOINTMENT ORIGINAL COM displayName
+      const originalApp = appointments.find((app) => app.id === filteredApp.id);
+
+      return {
+        id: filteredApp.id,
+        date: filteredApp.date,
+        appointmentPriceInCents: filteredApp.appointmentPriceInCents,
+        status: filteredApp.status,
+        dueDate: filteredApp.dueDate,
+        serviceId: filteredApp.serviceId,
+        observations: filteredApp.observations,
+        quantity: filteredApp.quantity ?? 1,
+        patient: filteredApp.patient,
+        doctor: filteredApp.doctor,
+        service: originalApp?.service
+          ? {
+              id: originalApp.service.id,
+              name: originalApp.service.name,
+              priceInCents: originalApp.service.priceInCents,
+              parentServiceId: originalApp.service.parentServiceId,
+              displayName: originalApp.service.displayName, // 🔥 USAR displayName DO ORIGINAL
+            }
+          : null,
+      };
+    });
+
   return (
     <div className="flex flex-col gap-6 p-6">
       {/* HEADER */}
@@ -97,7 +240,7 @@ export function AppointmentsPageClient({
           <AddAppointmentButton
             patients={patients}
             doctors={doctors}
-            services={services}
+            services={servicesForAddButton}
           />
         </div>
       </div>
@@ -112,7 +255,6 @@ export function AppointmentsPageClient({
                   Hoje
                 </p>
                 <p className="text-3xl font-bold">{agendamentosHoje}</p>
-                <p className="text-muted-foreground mt-1 text-xs"></p>
               </div>
             </div>
           </CardContent>
@@ -135,7 +277,7 @@ export function AppointmentsPageClient({
         </Card>
       </div>
 
-      {/* 🔥 SOMENTE OS FILTROS NOVOS - REMOVIDA A BUSCA ANTIGA */}
+      {/* FILTROS */}
       <AppointmentsFilters
         doctors={doctors.map((d) => ({ id: d.id, name: d.name }))}
         onFiltersChange={setFilters}
@@ -148,7 +290,7 @@ export function AppointmentsPageClient({
           <span className="font-medium">{filteredAppointments.length}</span> de{" "}
           <span className="font-medium">{appointments.length}</span>{" "}
           agendamentos
-          {(filters.search || filters.doctorId || filters.status) && ( // 🔥 REMOVIDO filters.statusPagamento
+          {(filters.search || filters.doctorId || filters.status) && (
             <span className="ml-2 text-blue-600">• Filtros ativos</span>
           )}
         </p>
@@ -158,8 +300,8 @@ export function AppointmentsPageClient({
       <Card className="dark:bg-card bg-gray-50">
         <CardContent className="p-0">
           <AppointmentsTable
-            appointments={filteredAppointments}
-            services={services}
+            appointments={appointmentsForTable}
+            services={servicesForTable}
             doctors={doctors.map((d) => ({
               id: d.id,
               name: d.name,

@@ -1,9 +1,6 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import dayjs from "dayjs";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
 import { MoreHorizontal, Trash2 } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
 import { toast } from "sonner";
@@ -19,10 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// 🔥 CONFIGURAR DAYJS
-dayjs.extend(utc);
-dayjs.extend(timezone);
-
 export interface Appointment {
   id: string;
   date: Date;
@@ -30,8 +23,8 @@ export interface Appointment {
   status: string;
   dueDate?: Date | null;
   serviceId?: string | null;
-  // 🔥 NOVO CAMPO: OBSERVAÇÕES
   observations?: string | null;
+  quantity: number;
   patient: {
     id: string;
     name: string;
@@ -49,8 +42,53 @@ export interface Appointment {
   service?: {
     id: string;
     name: string;
+    displayName?: string; // 🔥 NOME PARA EXIBIÇÃO
     priceInCents: number;
+    parentServiceId?: string | null;
   } | null;
+}
+
+// 🔥 FUNÇÃO SIMPLES PARA VERIFICAR DATA - SEM DAYJS
+function getDateInfo(appointmentDate: Date) {
+  const today = new Date();
+  const tomorrow = new Date();
+  tomorrow.setDate(today.getDate() + 1);
+
+  // 🔥 COMPARAR APENAS DIA/MÊS/ANO (IGNORAR HORÁRIO)
+  const appointmentDay = new Date(
+    appointmentDate.getFullYear(),
+    appointmentDate.getMonth(),
+    appointmentDate.getDate(),
+  );
+  const todayDay = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  );
+  const tomorrowDay = new Date(
+    tomorrow.getFullYear(),
+    tomorrow.getMonth(),
+    tomorrow.getDate(),
+  );
+
+  const isToday = appointmentDay.getTime() === todayDay.getTime();
+  const isTomorrow = appointmentDay.getTime() === tomorrowDay.getTime();
+
+  // 🔥 FORMATAR DATA E HORA
+  const formattedDate = appointmentDate.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+
+  const formattedTime = appointmentDate.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const fullFormatted = `${formattedDate} às ${formattedTime}`;
+
+  return { isToday, isTomorrow, fullFormatted };
 }
 
 // 🔥 FUNÇÃO PARA BADGES CLICÁVEIS DE STATUS AGENDAMENTO
@@ -222,46 +260,86 @@ export const columns: ColumnDef<Appointment>[] = [
   {
     accessorKey: "service.name",
     header: "Serviço",
+    cell: ({ row }) => {
+      const service = row.original.service;
+      if (!service) {
+        return <div className="text-muted-foreground">Não especificado</div>;
+      }
+
+      // 🔥 USAR displayName SE DISPONÍVEL, SENÃO O NAME NORMAL
+      const displayName = service.displayName || service.name;
+      const isSubService = !!service.parentServiceId;
+
+      return (
+        <div className="flex items-center gap-2">
+          {isSubService && (
+            <span className="text-muted-foreground text-xs">└</span>
+          )}
+          <span className={isSubService ? "text-sm" : "font-medium"}>
+            {displayName}
+          </span>
+        </div>
+      );
+    },
+  },
+  // 🔥 NOVA COLUNA: QUANTIDADE
+  {
+    accessorKey: "quantity",
+    header: () => <div className="text-center">Qtd</div>,
     cell: ({ row }) => (
-      <div>{row.original.service?.name || "Não especificado"}</div>
+      <div className="text-center">
+        <span className="bg-muted inline-flex h-6 w-8 items-center justify-center rounded text-sm font-medium">
+          {row.original.quantity}
+        </span>
+      </div>
     ),
+    meta: {
+      className: "w-16",
+    },
   },
   {
     accessorKey: "appointmentPriceInCents",
-    header: "Valor",
+    header: "Valor Total",
     cell: ({ row }) => {
-      const value = row.original.appointmentPriceInCents;
+      // 🔥 CALCULAR VALOR TOTAL = QUANTIDADE × PREÇO
+      const unitPrice = row.original.appointmentPriceInCents;
+      const quantity = row.original.quantity;
+      const totalValue = unitPrice * quantity;
+
       const formatted = new Intl.NumberFormat("pt-BR", {
         style: "currency",
         currency: "BRL",
-      }).format(value / 100);
-      return <div className="font-medium">{formatted}</div>;
+      }).format(totalValue / 100);
+
+      return (
+        <div className="font-medium">
+          {formatted}
+          {quantity > 1 && (
+            <div className="text-muted-foreground text-xs">
+              {quantity}x{" "}
+              {new Intl.NumberFormat("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              }).format(unitPrice / 100)}
+            </div>
+          )}
+        </div>
+      );
     },
   },
   {
     accessorKey: "date",
     header: () => <div className="text-center">Data Agendamento</div>,
     cell: ({ row }) => {
-      // 🔥 CONVERSÃO GARANTIDA UTC → BRASIL
-      const appointmentDateBR = dayjs
-        .utc(row.original.date)
-        .tz("America/Sao_Paulo");
-      const todayBR = dayjs().tz("America/Sao_Paulo");
-      const tomorrowBR = todayBR.add(1, "day");
-
-      const isToday =
-        appointmentDateBR.format("YYYY-MM-DD") === todayBR.format("YYYY-MM-DD");
-      const isTomorrow =
-        appointmentDateBR.format("YYYY-MM-DD") ===
-        tomorrowBR.format("YYYY-MM-DD");
-
-      // 🔥 USAR DAYJS PARA FORMATAR (NÃO DATE-FNS)
-      const formattedDate = appointmentDateBR.format("DD/MM/YYYY [às] HH:mm");
+      // 🔥 USAR FUNÇÃO SIMPLES - SEM DAYJS
+      const { isToday, isTomorrow, fullFormatted } = getDateInfo(
+        row.original.date,
+      );
 
       if (isToday) {
         return (
           <div className="text-center">
-            <div className="text-sm">{formattedDate}</div>
+            <div className="text-sm">{fullFormatted}</div>
             <div className="mt-1 text-xs font-medium text-yellow-600 dark:text-yellow-400">
               Hoje
             </div>
@@ -272,7 +350,7 @@ export const columns: ColumnDef<Appointment>[] = [
       if (isTomorrow) {
         return (
           <div className="text-center">
-            <div className="text-sm">{formattedDate}</div>
+            <div className="text-sm">{fullFormatted}</div>
             <div className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-400">
               Amanhã
             </div>
@@ -282,7 +360,7 @@ export const columns: ColumnDef<Appointment>[] = [
 
       return (
         <div className="text-center">
-          <div className="text-sm">{formattedDate}</div>
+          <div className="text-sm">{fullFormatted}</div>
         </div>
       );
     },
@@ -290,8 +368,6 @@ export const columns: ColumnDef<Appointment>[] = [
       className: "pl-1",
     },
   },
-  // 🔥 NOVA COLUNA: OBSERVAÇÕES
-
   {
     accessorKey: "status",
     header: "Status",

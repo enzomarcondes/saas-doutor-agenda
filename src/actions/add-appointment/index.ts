@@ -48,7 +48,7 @@ export const addAppointment = actionClient
       throw new Error("Horário não disponível ou ocupado");
     }
 
-    // 🔥 CORREÇÃO PRINCIPAL: CRIAR DATA EM TIMEZONE BRASILEIRO E CONVERTER PARA UTC
+    // 🔥 CRIAR DATA EM TIMEZONE BRASILEIRO E CONVERTER PARA UTC
     const appointmentDateTime = dayjs
       .tz(
         `${dayjs(parsedInput.date).format("YYYY-MM-DD")} ${parsedInput.time}`,
@@ -78,7 +78,7 @@ export const addAppointment = actionClient
       clinicId: session?.user.clinic?.id,
       date: appointmentDateTime,
       dueDate: dueDate,
-      // 🔥 NOVO CAMPO: OBSERVAÇÕES (já incluído no parsedInput via schema)
+      // 🔥 QUANTITY JÁ VEM NO parsedInput VIA SCHEMA
     });
 
     revalidatePath("/appointments");

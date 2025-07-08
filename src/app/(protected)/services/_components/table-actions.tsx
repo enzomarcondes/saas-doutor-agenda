@@ -1,6 +1,6 @@
 "use client";
 
-import { Edit, MoreHorizontal, Trash } from "lucide-react";
+import { Edit, MoreHorizontal, Plus, Trash } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -21,22 +21,33 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
 import { useServiceEdit } from "./service-edit-context";
 
+// 🔥 INTERFACE ATUALIZADA
 interface TableActionsProps {
   service: {
     id: string;
     name: string;
     priceInCents: number;
+    parentServiceId: string | null;
+    parentService?: {
+      id: string;
+      name: string;
+    } | null;
+    subServices?: {
+      id: string;
+      name: string;
+    }[];
   };
 }
 
 export function TableActions({ service }: TableActionsProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const { openEditDialog } = useServiceEdit();
+  const { openEditDialog, openSubServiceDialog } = useServiceEdit();
 
   const deleteServiceAction = useAction(deleteService, {
     onSuccess: () => {
@@ -62,6 +73,15 @@ export function TableActions({ service }: TableActionsProps) {
     openEditDialog(service);
   };
 
+  // 🔥 NOVA FUNÇÃO PARA CRIAR SUB-SERVIÇO
+  const handleAddSubService = () => {
+    openSubServiceDialog(service);
+  };
+
+  // 🔥 VERIFICAR SE É SERVIÇO PRINCIPAL
+  const isMainService = !service.parentServiceId;
+  const hasSubServices = service.subServices && service.subServices.length > 0;
+
   return (
     <>
       <DropdownMenu>
@@ -76,6 +96,19 @@ export function TableActions({ service }: TableActionsProps) {
             <Edit className="mr-2 h-4 w-4" />
             Editar
           </DropdownMenuItem>
+
+          {/* 🔥 OPÇÃO PARA ADICIONAR SUB-SERVIÇO (APENAS SERVIÇOS PRINCIPAIS) */}
+          {isMainService && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleAddSubService}>
+                <Plus className="mr-2 h-4 w-4" />
+                Adicionar Sub-serviço
+              </DropdownMenuItem>
+            </>
+          )}
+
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => setShowDeleteDialog(true)}
             className="text-red-600 focus:text-red-600"
@@ -91,20 +124,24 @@ export function TableActions({ service }: TableActionsProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Serviço</AlertDialogTitle>
             <AlertDialogDescription>
-              {`Tem certeza que deseja excluir o serviço "${service.name}"? Esta ação não pode ser desfeita.`}
+              {hasSubServices
+                ? `Não é possível excluir "${service.name}" pois ele possui sub-serviços vinculados. Exclua os sub-serviços primeiro.`
+                : `Tem certeza que deseja excluir o serviço "${service.name}"? Esta ação não pode ser desfeita.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteServiceAction.isPending}>
               Cancelar
             </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleteServiceAction.isPending}
-              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-            >
-              {deleteServiceAction.isPending ? "Excluindo..." : "Excluir"}
-            </AlertDialogAction>
+            {!hasSubServices && (
+              <AlertDialogAction
+                onClick={handleDelete}
+                disabled={deleteServiceAction.isPending}
+                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              >
+                {deleteServiceAction.isPending ? "Excluindo..." : "Excluir"}
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

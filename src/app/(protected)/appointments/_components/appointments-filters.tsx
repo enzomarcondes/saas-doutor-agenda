@@ -12,6 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+// 🔥 IMPORTAR TIPO DO HOOK
+import { AppointmentFilters } from "@/hooks/use-appointments-filters";
 
 interface Doctor {
   id: string;
@@ -20,12 +22,7 @@ interface Doctor {
 
 interface AppointmentsFiltersProps {
   doctors: Doctor[];
-  onFiltersChange: (filters: {
-    search: string;
-    doctorId: string;
-    status: string;
-    // 🔥 REMOVIDO: statusPagamento: string;
-  }) => void;
+  onFiltersChange: (filters: AppointmentFilters) => void;
 }
 
 export function AppointmentsFilters({
@@ -35,32 +32,30 @@ export function AppointmentsFilters({
   const [search, setSearch] = useState("");
   const [doctorId, setDoctorId] = useState("");
   const [status, setStatus] = useState("");
-  // 🔥 REMOVIDO: const [statusPagamento, setStatusPagamento] = useState("");
 
   // 🔥 APLICAR FILTROS COM DEBOUNCE DE 300MS
   useEffect(() => {
     const timer = setTimeout(() => {
       onFiltersChange({
         search,
-        doctorId,
-        status,
-        // 🔥 REMOVIDO: statusPagamento,
+        doctorId: doctorId === "all" ? "" : doctorId,
+        status: status === "all" ? "" : status,
       });
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search, doctorId, status, onFiltersChange]); // 🔥 REMOVIDO statusPagamento da dependência
+  }, [search, doctorId, status, onFiltersChange]);
 
   // 🔥 LIMPAR TODOS OS FILTROS
   const clearFilters = () => {
     setSearch("");
     setDoctorId("");
     setStatus("");
-    // 🔥 REMOVIDO: setStatusPagamento("");
   };
 
   // 🔥 VERIFICAR SE TEM FILTROS ATIVOS
-  const hasActiveFilters = search || doctorId || status; // 🔥 REMOVIDO || statusPagamento
+  const hasActiveFilters =
+    search || (doctorId && doctorId !== "all") || (status && status !== "all");
 
   return (
     <div className="flex flex-col gap-4">
@@ -68,7 +63,7 @@ export function AppointmentsFilters({
       <div className="relative max-w-md">
         <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
         <Input
-          placeholder="Buscar por paciente, dentista, serviço..."
+          placeholder="Buscar por paciente..."
           className="pl-9"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -91,8 +86,6 @@ export function AppointmentsFilters({
             <SelectItem value="finalizado">Finalizado</SelectItem>
           </SelectContent>
         </Select>
-
-        {/* 🔥 REMOVIDO COMPLETAMENTE O SELECT DE STATUS PAGAMENTO */}
 
         {/* DENTISTA */}
         <Select value={doctorId} onValueChange={setDoctorId}>

@@ -29,6 +29,13 @@ export const addAppointmentSchema = z.object({
     .default("agendado"),
   // 🔥 CAMPO: DATA DE VENCIMENTO
   dueDate: z.date().optional(),
-  // 🔥 NOVO CAMPO: OBSERVAÇÕES
+  // 🔥 CAMPO: OBSERVAÇÕES
   observations: z.string().optional(),
+  // 🔥 NOVO CAMPO: QUANTIDADE
+  quantity: z
+    .number()
+    .min(1, {
+      message: "Quantidade deve ser no mínimo 1.",
+    })
+    .default(1),
 });
