@@ -1,12 +1,32 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 import { patientsTable } from "@/db/schema";
 
 import PatientsTableActions from "./table-actions";
 
 type Patient = typeof patientsTable.$inferSelect;
+
+// 🔥 FUNÇÃO HELPER PARA CALCULAR IDADE
+const calculateAge = (birthDate: Date | null | undefined): string => {
+  if (!birthDate) return "Não informado";
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < birthDate.getDate())
+  ) {
+    age--;
+  }
+
+  return `${age} anos`;
+};
 
 export const patientsTableColumns: ColumnDef<Patient>[] = [
   {
@@ -36,6 +56,28 @@ export const patientsTableColumns: ColumnDef<Patient>[] = [
         "($1) $2-$3",
       );
       return formatted;
+    },
+  },
+  // 🔥 NOVA COLUNA: DATA DE NASCIMENTO E IDADE
+  {
+    id: "birthDate",
+    accessorKey: "birthDate",
+    header: "Data Nascimento / Idade",
+    cell: (params) => {
+      const patient = params.row.original;
+      if (!patient.birthDate) return "Não informado";
+
+      const formattedDate = format(patient.birthDate, "dd/MM/yyyy", {
+        locale: ptBR,
+      });
+      const age = calculateAge(patient.birthDate);
+
+      return (
+        <div className="space-y-1">
+          <div className="text-sm">{formattedDate}</div>
+          <div className="text-muted-foreground text-xs">{age}</div>
+        </div>
+      );
     },
   },
   {

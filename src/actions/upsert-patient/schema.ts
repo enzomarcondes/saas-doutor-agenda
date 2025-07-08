@@ -39,7 +39,6 @@ export const upsertPatientSchema = z.object({
   name: z.string().trim().min(1, {
     message: "Nome é obrigatório.",
   }),
-  // 🔥 EMAIL AGORA OPCIONAL
   email: z
     .string()
     .email({
@@ -54,18 +53,32 @@ export const upsertPatientSchema = z.object({
     required_error: "Sexo é obrigatório.",
   }),
 
-  // 🔥 NOVOS CAMPOS OPCIONAIS
+  // 🔥 NOVO CAMPO: DATA DE NASCIMENTO OPCIONAL
+  birthDate: z
+    .date()
+    .optional()
+    .refine(
+      (date) => {
+        if (!date) return true; // Se não informado, é válido
+        const today = new Date();
+        const age = today.getFullYear() - date.getFullYear();
+        return age >= 0 && age <= 120; // Idade entre 0 e 120 anos
+      },
+      {
+        message: "Data de nascimento deve ser válida (0-120 anos).",
+      },
+    ),
+
+  // 🔥 CAMPOS OPCIONAIS EXISTENTES...
   cpf: z
     .string()
     .optional()
     .refine(
       (cpf) => {
-        if (!cpf || cpf.trim() === "") return true; // Opcional
+        if (!cpf || cpf.trim() === "") return true;
         return isValidCPF(cpf);
       },
-      {
-        message: "CPF inválido.",
-      },
+      { message: "CPF inválido." },
     ),
 
   cep: z
@@ -73,12 +86,10 @@ export const upsertPatientSchema = z.object({
     .optional()
     .refine(
       (cep) => {
-        if (!cep || cep.trim() === "") return true; // Opcional
+        if (!cep || cep.trim() === "") return true;
         return isValidCEP(cep);
       },
-      {
-        message: "CEP deve ter 8 dígitos.",
-      },
+      { message: "CEP deve ter 8 dígitos." },
     ),
 
   bairro: z.string().optional(),

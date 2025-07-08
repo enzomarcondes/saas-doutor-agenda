@@ -1,6 +1,8 @@
 "use client";
 
-import { FileText, Mail, MapPin, Phone, User } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { Calendar, FileText, Mail, MapPin, Phone, User } from "lucide-react";
 import { useState } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -61,6 +63,30 @@ const PatientCard = ({ patient }: PatientCardProps) => {
     return parts.join(", ");
   };
 
+  // 🔥 NOVA FUNÇÃO: CALCULAR IDADE E FORMATAR DATA
+  const getBirthDateInfo = () => {
+    if (!patient.birthDate) return null;
+
+    const birthDate = patient.birthDate;
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && today.getDate() < birthDate.getDate())
+    ) {
+      age--;
+    }
+
+    const formattedDate = format(birthDate, "dd/MM/yyyy", { locale: ptBR });
+
+    return {
+      formatted: formattedDate,
+      age: `${age} anos`,
+    };
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -89,6 +115,19 @@ const PatientCard = ({ patient }: PatientCardProps) => {
           <Phone className="mr-1 h-3 w-3" />
           {formatPhoneNumber(patient.phoneNumber)}
         </Badge>
+
+        {/* 🔥 NOVA BADGE: DATA DE NASCIMENTO E IDADE */}
+        {getBirthDateInfo() && (
+          <Badge variant="outline">
+            <Calendar className="mr-1 h-3 w-3" />
+            <div className="flex flex-col">
+              <span className="text-xs">{getBirthDateInfo()?.formatted}</span>
+              <span className="text-muted-foreground text-xs">
+                {getBirthDateInfo()?.age}
+              </span>
+            </div>
+          </Badge>
+        )}
 
         {/* 🔥 CPF */}
         {patient.cpf && (

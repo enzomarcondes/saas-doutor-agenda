@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/select";
 import { patientsTable } from "@/db/schema";
 
-// 🔥 SCHEMA LOCAL ATUALIZADO
+// 🔥 SCHEMA LOCAL ATUALIZADO COM DATA DE NASCIMENTO
 const formSchema = z.object({
   name: z.string().trim().min(1, {
     message: "Nome é obrigatório.",
@@ -53,6 +53,8 @@ const formSchema = z.object({
   sex: z.enum(["male", "female"], {
     required_error: "Sexo é obrigatório.",
   }),
+  // 🔥 NOVO CAMPO: DATA DE NASCIMENTO OPCIONAL
+  birthDate: z.string().optional(), // String no formulário, será convertida para Date
   cpf: z.string().optional(),
   cep: z.string().optional(),
   bairro: z.string().optional(),
@@ -65,7 +67,7 @@ const formSchema = z.object({
 interface UpsertPatientFormProps {
   isOpen: boolean;
   patient?: typeof patientsTable.$inferSelect;
-  onSuccess?: (createdPatient?: typeof patientsTable.$inferSelect) => void; // 🔥 PARÂMETRO OPCIONAL
+  onSuccess?: (createdPatient?: typeof patientsTable.$inferSelect) => void;
 }
 
 const UpsertPatientForm = ({
@@ -75,6 +77,15 @@ const UpsertPatientForm = ({
 }: UpsertPatientFormProps) => {
   const [isLoadingCEP, setIsLoadingCEP] = useState(false);
 
+  // 🔥 FUNÇÃO HELPER PARA FORMATAR DATA PARA MÁSCARA DD/MM/AAAA
+  const formatDateForInput = (date: Date | null | undefined): string => {
+    if (!date) return "";
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = String(date.getFullYear());
+    return `${day}${month}${year}`; // Retorna DDMMAAAA para a máscara
+  };
+
   const form = useForm<z.infer<typeof formSchema>>({
     shouldUnregister: true,
     resolver: zodResolver(formSchema),
@@ -83,6 +94,7 @@ const UpsertPatientForm = ({
       email: patient?.email ?? "",
       phoneNumber: patient?.phoneNumber ?? "",
       sex: patient?.sex ?? undefined,
+      birthDate: formatDateForInput(patient?.birthDate ?? null), // 🔥 CONVERSÃO SEGURA
       cpf: patient?.cpf ?? "",
       cep: patient?.cep ?? "",
       bairro: patient?.bairro ?? "",
@@ -93,7 +105,7 @@ const UpsertPatientForm = ({
     },
   });
 
-  // 🔥 CORREÇÃO: Converter null para undefined no reset
+  // 🔥 CORREÇÃO NO useEffect TAMBÉM:
   useEffect(() => {
     if (isOpen && patient) {
       const patientData = {
@@ -101,6 +113,7 @@ const UpsertPatientForm = ({
         email: patient.email || "",
         phoneNumber: patient.phoneNumber,
         sex: patient.sex,
+        birthDate: formatDateForInput(patient.birthDate ?? null), // 🔥 CONVERSÃO SEGURA
         cpf: patient.cpf || "",
         cep: patient.cep || "",
         bairro: patient.bairro || "",
@@ -113,7 +126,7 @@ const UpsertPatientForm = ({
     }
   }, [isOpen, form, patient]);
 
-  // 🔥 FUNÇÃO PARA BUSCAR ENDEREÇO POR CEP
+  // 🔥 FUNÇÃO PARA BUSCAR ENDEREÇO POR CEP (EXISTENTE)
   const fetchAddressByCEP = async (cep: string) => {
     const cleanCEP = cep.replace(/\D/g, "");
 
@@ -132,7 +145,6 @@ const UpsertPatientForm = ({
         return;
       }
 
-      // 🔥 PREENCHER CAMPOS AUTOMATICAMENTE
       form.setValue("bairro", data.bairro || "");
       form.setValue("rua", data.logradouro || "");
       form.setValue("cidade", data.localidade || "");
@@ -149,7 +161,7 @@ const UpsertPatientForm = ({
   const upsertPatientAction = useAction(upsertPatient, {
     onSuccess: (result) => {
       toast.success("Paciente salvo com sucesso.");
-      onSuccess?.(result.data); // 🔥 PASSA DADOS DO PACIENTE CRIADO
+      onSuccess?.(result.data);
     },
     onError: () => {
       toast.error("Erro ao salvar paciente.");
@@ -157,10 +169,24 @@ const UpsertPatientForm = ({
   });
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
-    // 🔥 LIMPAR CAMPOS VAZIOS
+    // 🔥 FUNÇÃO CORRIGIDA PARA CONVERTER DD/MM/AAAA PARA DATE
+    const convertBirthDate = (dateString: string): Date | undefined => {
+      if (!dateString || dateString.length !== 8) return undefined;
+
+      const day = parseInt(dateString.slice(0, 2));
+      const month = parseInt(dateString.slice(2, 4));
+      const year = parseInt(dateString.slice(4, 8));
+
+      // 🔥 CRIAR DATA NO TIMEZONE LOCAL (sem conversão UTC)
+      const date = new Date(year, month - 1, day); // month - 1 porque Date usa 0-11
+      return isNaN(date.getTime()) ? undefined : date;
+    };
+
+    // 🔥 LIMPAR CAMPOS VAZIOS E CONVERTER DATA
     const cleanValues = {
       ...values,
       email: values.email || undefined,
+      birthDate: convertBirthDate(values.birthDate ?? ""), // 🔥 CONVERTER MÁSCARA PARA DATE
       cpf: values.cpf || undefined,
       cep: values.cep || undefined,
       bairro: values.bairro || undefined,
@@ -256,7 +282,7 @@ const UpsertPatientForm = ({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <FormField
                 control={form.control}
                 name="sex"
@@ -277,6 +303,30 @@ const UpsertPatientForm = ({
                         <SelectItem value="female">Feminino</SelectItem>
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* 🔥 CAMPO DATA DE NASCIMENTO COM MÁSCARA */}
+              <FormField
+                control={form.control}
+                name="birthDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Data de Nascimento (opcional)</FormLabel>
+                    <FormControl>
+                      <PatternFormat
+                        format="##/##/####"
+                        mask="_"
+                        placeholder="DD/MM/AAAA"
+                        value={field.value}
+                        onValueChange={(value) => {
+                          field.onChange(value.value);
+                        }}
+                        customInput={Input}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -307,7 +357,7 @@ const UpsertPatientForm = ({
             </div>
           </div>
 
-          {/* 🔥 SEÇÃO: ENDEREÇO */}
+          {/* 🔥 SEÇÃO: ENDEREÇO (CONTINUA IGUAL) */}
           <div className="space-y-4">
             <h3 className="text-muted-foreground text-sm font-medium">
               Endereço (opcional)
@@ -411,45 +461,9 @@ const UpsertPatientForm = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>UF</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o estado" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="AC">Acre</SelectItem>
-                      <SelectItem value="AL">Alagoas</SelectItem>
-                      <SelectItem value="AP">Amapá</SelectItem>
-                      <SelectItem value="AM">Amazonas</SelectItem>
-                      <SelectItem value="BA">Bahia</SelectItem>
-                      <SelectItem value="CE">Ceará</SelectItem>
-                      <SelectItem value="DF">Distrito Federal</SelectItem>
-                      <SelectItem value="ES">Espírito Santo</SelectItem>
-                      <SelectItem value="GO">Goiás</SelectItem>
-                      <SelectItem value="MA">Maranhão</SelectItem>
-                      <SelectItem value="MT">Mato Grosso</SelectItem>
-                      <SelectItem value="MS">Mato Grosso do Sul</SelectItem>
-                      <SelectItem value="MG">Minas Gerais</SelectItem>
-                      <SelectItem value="PA">Pará</SelectItem>
-                      <SelectItem value="PB">Paraíba</SelectItem>
-                      <SelectItem value="PR">Paraná</SelectItem>
-                      <SelectItem value="PE">Pernambuco</SelectItem>
-                      <SelectItem value="PI">Piauí</SelectItem>
-                      <SelectItem value="RJ">Rio de Janeiro</SelectItem>
-                      <SelectItem value="RN">Rio Grande do Norte</SelectItem>
-                      <SelectItem value="RS">Rio Grande do Sul</SelectItem>
-                      <SelectItem value="RO">Rondônia</SelectItem>
-                      <SelectItem value="RR">Roraima</SelectItem>
-                      <SelectItem value="SC">Santa Catarina</SelectItem>
-                      <SelectItem value="SP">São Paulo</SelectItem>
-                      <SelectItem value="SE">Sergipe</SelectItem>
-                      <SelectItem value="TO">Tocantins</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Input placeholder="SP" maxLength={2} {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -457,11 +471,7 @@ const UpsertPatientForm = ({
           </div>
 
           <DialogFooter>
-            <Button
-              type="submit"
-              disabled={upsertPatientAction.isPending}
-              className="w-full"
-            >
+            <Button type="submit" disabled={upsertPatientAction.isPending}>
               {upsertPatientAction.isPending ? "Salvando..." : "Salvar"}
             </Button>
           </DialogFooter>

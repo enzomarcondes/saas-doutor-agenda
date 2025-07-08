@@ -225,7 +225,10 @@ export const patientsTable = pgTable("patients", {
   phoneNumber: text("phone_number").notNull(),
   sex: patientSexEnum("sex").notNull(),
 
-  // 🔥 NOVOS CAMPOS DE ENDEREÇO E DOCUMENTO
+  // 🔥 NOVO CAMPO: DATA DE NASCIMENTO OPCIONAL
+  birthDate: timestamp("birth_date"), // 🔥 ADICIONAR ESTA LINHA (SEM .notNull())
+
+  // 🔥 CAMPOS DE ENDEREÇO E DOCUMENTO EXISTENTES
   cpf: text("cpf"), // CPF opcional
   cep: text("cep"), // CEP opcional
   bairro: text("bairro"), // Bairro opcional
